@@ -27,8 +27,6 @@ def setup_training(self):
     self.data_count = 1
 
 
-
-
 def game_events_occurred(self, old_game_state: dict, expert_action: str, new_game_state: dict, events: List[str]):
     """
     Called once per step to allow intermediate rewards based on game events.
@@ -43,7 +41,8 @@ def game_events_occurred(self, old_game_state: dict, expert_action: str, new_gam
 
     Author: Luke Voss
     """
-    self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
+    self.logger.debug(f'Encountered game event(s) {", ".join(
+        map(repr, events))} in step {new_game_state["step"]}')
 
     # events.append(CONSTANT_PENALTY)
 
@@ -53,18 +52,14 @@ def game_events_occurred(self, old_game_state: dict, expert_action: str, new_gam
 
     # Normalize game states
     self.action_map, self.reverse_action_map = normalize_state(old_game_state)
-    _,_ = normalize_state(new_game_state)
+    _, _ = normalize_state(new_game_state)
     normalized_expert_action = self.reverse_action_map(expert_action)
     idx_normalized_expert_action = ACTIONS.index(normalized_expert_action)
     feature_state = state_to_features(old_game_state)
 
-
-    np.savez_compressed("./data/expert_data_{}.npz".format(self.data_count), state=feature_state, action=idx_normalized_expert_action)
+    np.savez_compressed("./data/expert_data_{}.npz".format(self.data_count),
+                        state=feature_state, action=idx_normalized_expert_action)
     self.data_count += 1
-    
-        
-        
-
 
 
 def end_of_round(self, last_game_state: dict, last_expert_action: str, events: List[str]):
@@ -81,7 +76,8 @@ def end_of_round(self, last_game_state: dict, last_expert_action: str, events: L
     Author: Luke Voss
     """
 
-    self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
+    self.logger.debug(f'Encountered event(s) {
+                      ", ".join(map(repr, events))} in final step')
 
     # Handle None Actions
     if last_expert_action is None:
@@ -93,7 +89,8 @@ def end_of_round(self, last_game_state: dict, last_expert_action: str, events: L
     idx_normalized_expert_action = ACTIONS.index(normalized_expert_action)
     feature_state = state_to_features(last_game_state)
 
-    np.savez_compressed("./data/expert_data_{}.npz".format(self.data_count), state=feature_state, action=idx_normalized_expert_action)
+    np.savez_compressed("./data/expert_data_{}.npz".format(self.data_count),
+                        state=feature_state, action=idx_normalized_expert_action)
     self.data_count += 1
 
 
@@ -113,12 +110,11 @@ def reward_from_events(self, events: List[str]) -> int:
     game_rewards = {
         e.COIN_COLLECTED: 0.5,
         e.INVALID_ACTION: -0.01,
-        e.KILLED_SELF: 0.1, # It is better to kill himself than to get killed
+        e.KILLED_SELF: -0.1,  # It is better to kill himself than to get killed
         e.GOT_KILLED: -1,
         e.CRATE_DESTROYED: 0.05,
         e.KILLED_OPPONENT: 1,
     }
-
 
     reward_sum = 0
     for event in events:
