@@ -5,26 +5,27 @@ from settings import MAX_STEPS
 
 
 # Dense Rewards
-CONSTANT_PENALTY = "Constant Penalty"
-WON_GAME = "Won the game"
-BOMBED_1_TO_2_CRATES = "BOMBED_1_TO_2_CRATES"
-BOMBED_3_TO_5_CRATES = "BOMBED_3_TO_5_CRATES"
-BOMBED_5_PLUS_CRATES = "BOMBED_5_PLUS_CRATES"
-GET_IN_LOOP = "GET_IN_LOOP"
-PLACEHOLDER_EVENT = "PLACEHOLDER"
-ESCAPE = "ESCAPE"
-NOT_ESCAPE = "NOT_ESCAPE"
+CONSTANT_PENALTY = "CONSTANT_PENALTY"
+WON_GAME = "WON_GAME"
+BOMBED_1_TO_2_CRATES = "BOMBED_1_TO_2_CRATES"  # TODO
+BOMBED_3_TO_5_CRATES = "BOMBED_3_TO_5_CRATES"  # TODO
+BOMBED_5_PLUS_CRATES = "BOMBED_5_PLUS_CRATES"  # TODO
+GOT_IN_LOOP = "GOT_IN_LOOP"
+PLACEHOLDER_EVENT = "PLACEHOLDER"  # TODO
+ESCAPING = "ESCAPING"
+NOT_ESCAPING = "NOT_ESCAPING"
 CLOSER_TO_COIN = "CLOSER_TO_COIN"
 AWAY_FROM_COIN = "AWAY_FROM_COIN"
-CLOSER_TO_CRATE = "CLOSER_TO_CRATE"
-AWAY_FROM_CRATE = "AWAY_FROM_CRATE"
-SURVIVED_STEP = "SURVIVED_STEP"
-DESTROY_TARGET = "DESTROY_TARGET"
-MISSED_TARGET = "MISSED_TARGET"
+CLOSER_TO_CRATE = "CLOSER_TO_CRATE"  # TODO
+AWAY_FROM_CRATE = "AWAY_FROM_CRATE"  # TODO
+SURVIVED_STEP = "SURVIVED_STEP"  # TODO
+DESTROY_TARGET = "DESTROY_TARGET"  # TODO
+MISSED_TARGET = "MISSED_TARGET"  # TODO
 WAITED_NECESSARILY = "WAITED_NECESSARILY"
 WAITED_UNNECESSARILY = "WAITED_UNNECESSARILY"
 CLOSER_TO_PLAYERS = "CLOSER_TO_PLAYERS"
 AWAY_FROM_PLAYERS = "AWAY_FROM_PLAYERS"
+OUT_OF_DANGER = "OUT_OF_DANGER"  # TODO
 
 ############# event shaping #####################
 
@@ -83,9 +84,20 @@ def filter_dangerous_bombs(x_agent: int, y_agent: int, bombs: List[Tuple[int, in
     ]
 
 
-def sort_bombs_by_distance(x_agent: int, y_agent: int, bombs: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
-    """Sorts bombs by Manhattan distance to the agent."""
-    return sorted(bombs, key=lambda bomb: abs(bomb[0] - x_agent) + abs(bomb[1] - y_agent))
+def manhatten_distance(x1, y1, x2, y2):
+    return abs(x1 - x2) + abs(y1 - y2)
+
+
+def sort_objects_by_distance(x_agent: int, y_agent: int, objects: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+    """Sorts one type of objects by Manhattan distance to the agent."""
+    if objects:
+        return sorted(objects, key=lambda object: manhatten_distance(object[0], object[1], x_agent, y_agent))
+
+
+def sort_opponents_by_distance(x_agent: int, y_agent: int, living_opponents: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+    """Sorts living opponents by Manhattan distance to the agent."""
+    if living_opponents:
+        return sorted(living_opponents, key=lambda opponent: manhatten_distance(opponent[3][0], opponent[3][1], x_agent, y_agent))
 
 
 def filter_and_sort_bombs(x_agent, y_agent, bombs):
@@ -95,9 +107,8 @@ def filter_and_sort_bombs(x_agent, y_agent, bombs):
     """
     dangerous_bombs = filter_dangerous_bombs(x_agent, y_agent, bombs)
 
-    if dangerous_bombs:
-        dangerous_bombs = sort_bombs_by_distance(
-            x_agent, y_agent, dangerous_bombs)
+    dangerous_bombs = sort_objects_by_distance(
+        x_agent, y_agent, dangerous_bombs)
 
     return dangerous_bombs
 
@@ -160,13 +171,54 @@ def is_escaping_danger(x_agent, y_agent, self_action, field, sorted_dangerous_bo
         return False
 
 
+def has_escaped_danger(x_agent, y_agent, self_action, field, sorted_dangerous_bombs, explosion_map):
+    x_new, y_new = march_forward(x_agent, y_agent, self_action)
+    if valid_action(x_new, y_new, field):
+        if is_in_danger(x_new, y_new, explosion_map, sorted_dangerous_bombs):
+            return False
+        else:
+            return True
+    else:
+        return False
+
+
 def valid_action(x_new, y_new, field):
     return field[x_new, y_new] == 0
+
+
+def is_in_danger_or_invalid_action(x_agent, y_agent, field, explosion_map, sorted_dangerous_bombs):
+    return (is_in_danger((x_agent, y_agent, field, explosion_map, sorted_dangerous_bombs))
+            or not valid_action(x_agent, y_agent, field))
 
 
 def distance_increased(x_bomb, y_bomb, x_agent, y_agent, x_new, y_new):
     return ((abs(x_bomb - x_new) > abs(x_bomb - x_agent)) or
             ((y_bomb - y_new) > abs(y_bomb - y_agent)))
+
+
+def got_in_loop(self, x_agent, y_agent):
+    self.loop_count = self.agent_coord_history.count((x_agent, y_agent))
+    return self.loop_count > 2
+
+
+def waited_necessarily(x_agent, y_agent, field, explosion_map, sorted_dangerous_bombs):
+    """
+    Check if there is an explosion or danger around agent
+    """
+    return (is_in_danger_or_invalid_action(x_agent+1, y_agent, field, explosion_map, sorted_dangerous_bombs) and
+            is_in_danger_or_invalid_action(x_agent-1, y_agent, field, explosion_map, sorted_dangerous_bombs) and
+            is_in_danger_or_invalid_action(x_agent, y_agent+1, field, explosion_map, sorted_dangerous_bombs) and
+            is_in_danger_or_invalid_action(x_agent, y_agent-1, field, explosion_map, sorted_dangerous_bombs))
+
+
+def decreased_distance(x_old, y_old, x_new, y_new, x_obj, y_obj):
+    return (manhatten_distance(x_new, y_new, x_obj, y_obj)
+            < manhatten_distance(x_old, y_old, x_obj, y_obj))
+
+
+def increased_distance(x_old, y_old, x_new, y_new, x_obj, y_obj):
+    return (manhatten_distance(x_new, y_new, x_obj, y_obj)
+            > manhatten_distance(x_old, y_old, x_obj, y_obj))
 
 
 def add_own_events(self, old_game_state, self_action, events_src, end_of_round) -> list:
@@ -191,48 +243,47 @@ def add_own_events(self, old_game_state, self_action, events_src, end_of_round) 
 
     if is_in_danger(x_agent, y_agent, explosion_map, sorted_dangerous_bombs):
         if not_escaping_danger(self_action):
-            events.append(NOT_ESCAPE)
+            events.append(NOT_ESCAPING)
+        elif has_escaped_danger(x_agent, y_agent, self_action, field, sorted_dangerous_bombs, explosion_map):
+            events.append(OUT_OF_DANGER)
         elif is_escaping_danger(x_agent, y_agent, self_action, field, sorted_dangerous_bombs):
-            events.append(ESCAPE)
+            events.append(ESCAPING)
         else:
-            events.append(NOT_ESCAPE)
+            events.append(NOT_ESCAPING)
 
     else:
-        # Check if in loop
-        self.loop_count = self.agent_coord_history.count((x_agent, y_agent))
-
-        # If the agent gets caught in a loop, he will be punished.
-        if self.loop_count > 2:
-            events.append(GET_IN_LOOP)
+        if got_in_loop(self, x_agent, y_agent):
+            events.append(GOT_IN_LOOP)
 
         if self_action == 'WAIT':
             # Reward the agent if waiting is necessary.
-            if (is_in_danger(x_agent+1, y_agent, field, explosion_map, bombs) or
-                is_in_danger(x_agent-1, y_agent, field, explosion_map, bombs) or
-                is_in_danger(x_agent, y_agent+1, field, explosion_map, bombs) or
-                    is_in_danger(x_agent, y_agent-1, field, explosion_map, bombs)):
+            if waited_necessarily(x_agent, y_agent, field, explosion_map, sorted_dangerous_bombs):
                 events.append(WAITED_NECESSARILY)
             else:
                 events.append(WAITED_UNNECESSARILY)
 
         elif self_action != 'BOMB':
             x_new, y_new = march_forward(x_agent, y_agent, self_action)
-            for opponent in living_opponents:
-                x_opponent, y_opponent = opponent[3]
 
-                # Check if distance decreased
-                if ((abs(x_opponent - x_new) > abs(x_opponent - x_agent)) or
-                        ((y_opponent - y_new) > abs(y_opponent - y_agent))):
+            sorted_living_opponents = sort_opponents_by_distance(
+                x_agent, y_agent, living_opponents)
+            if sorted_living_opponents:
+                closest_opponent = sorted_living_opponents[0]
+                x_opponent, y_opponent = closest_opponent[3]
+
+                if decreased_distance(x_agent, y_agent, x_new, y_new, x_opponent, y_opponent):
                     events.append(CLOSER_TO_PLAYERS)
-                else:
+                elif increased_distance(x_agent, y_agent, x_new, y_new, x_opponent, y_opponent):
                     events.append(AWAY_FROM_PLAYERS)
 
-            for x_coin, y_coin in coins:
-                # Check if distance decreased
-                if ((abs(x_coin - x_new) > abs(x_coin - x_agent)) or
-                        ((y_coin - y_new) > abs(y_coin - y_agent))):
+            sorted_coins = sort_objects_by_distance(x_agent, y_agent, coins)
+            if sorted_coins:
+                closest_coin = sorted_coins[0]
+                x_coin, y_coin = closest_coin
+
+                if decreased_distance(x_agent, y_agent, x_new, y_new, x_coin, y_coin):
                     events.append(CLOSER_TO_COIN)
-                else:
+                elif increased_distance(x_agent, y_agent, x_new, y_new, x_coin, y_coin):
                     events.append(AWAY_FROM_COIN)
 
     return events
@@ -259,8 +310,8 @@ def reward_from_events(self, events: List[str]) -> int:
 
     game_rewards = {
         # SPECIAL EVENTS
-        ESCAPE: escape,
-        NOT_ESCAPE: -escape,
+        ESCAPING: escape,
+        NOT_ESCAPING: -escape,
         WAITED_NECESSARILY: waiting,
         WAITED_UNNECESSARILY: -waiting,
         CLOSER_TO_PLAYERS: aggressive_action,
@@ -269,7 +320,7 @@ def reward_from_events(self, events: List[str]) -> int:
         AWAY_FROM_COIN: -coin_action,
         CONSTANT_PENALTY: -0.001,
         WON_GAME: 10,
-        GET_IN_LOOP: -0.025 * self.loop_count,
+        GOT_IN_LOOP: -0.025 * self.loop_count,
 
         # DEFAULT EVENTS
         e.INVALID_ACTION: -1,
@@ -293,7 +344,7 @@ def reward_from_events(self, events: List[str]) -> int:
 
     reward_sum = 0
     for event in events:
-        if event in game_rewards:
-            reward_sum += game_rewards[event]
+    if event in game_rewards:
+    reward_sum += game_rewards[event]
     self.logger.info(f"Awarded {reward_sum} for events {', '.join(events)}")
     return reward_sum

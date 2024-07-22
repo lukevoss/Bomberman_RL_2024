@@ -30,6 +30,8 @@ USING_PRETRAINED = True
 MODEL_NAME = 'ppo_model.pt'
 FIELD_SIZE = 15
 FEATURE_SIZE = 7
+MAX_COORD_HISTORY = 5
+
 
 def init_weights(m):
     if isinstance(m, nn.Linear):
@@ -41,9 +43,10 @@ class ActorCritic(nn.Module):
     """
     Actor Critic with MLP backbone
     """
+
     def __init__(self, num_inputs, num_outputs, hidden_size, std=0.0):
         super(ActorCritic, self).__init__()
-        
+
         self.critic = nn.Sequential(
             nn.Linear(num_inputs, 1000),
             nn.ReLU(),
@@ -51,7 +54,7 @@ class ActorCritic(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden_size, 1)
         )
-        
+
         self.actor = nn.Sequential(
             nn.Linear(num_inputs, 1000),
             nn.ReLU(),
@@ -62,21 +65,23 @@ class ActorCritic(nn.Module):
         )
 
         self.log_std = nn.Parameter(torch.ones(1, num_outputs) * std)
-        
+
         self.apply(init_weights)
 
     def forward(self, x):
-    
+
         action_probs = self.actor(x)
-        dist  = Categorical(action_probs)
+        dist = Categorical(action_probs)
         value = self.critic(x)
 
         return dist, value
-    
+
+
 class ActorCriticLSTM(nn.Module):
     """
     Actor Critic with LSTM backbone, shown more capable in behavioral cloning
     """
+
     def __init__(self, num_inputs, num_outputs, hidden_size, std=0.0):
         super(ActorCriticLSTM, self).__init__()
         self.num_inputs = num_inputs
@@ -95,11 +100,11 @@ class ActorCriticLSTM(nn.Module):
         )
 
         self.log_std = nn.Parameter(torch.ones(1, num_outputs) * std)
-        
+
         self.apply(init_weights)
 
     def forward(self, x):
-    
+
         x, _ = self.lstm(x)
         x, _ = self.lstm2(x)
         # x, _ = self.lstm3(x)
@@ -107,10 +112,11 @@ class ActorCriticLSTM(nn.Module):
         # x, _ = self.lstm5(x)
 
         action_probs = self.actor_linear(x)
-        dist  = Categorical(action_probs)
+        dist = Categorical(action_probs)
         value = self.critic_linear(x)
 
         return dist, value
+
 
 def setup(self):
     """
@@ -126,26 +132,27 @@ def setup(self):
 
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
-    num_inputs  = FIELD_SIZE * FIELD_SIZE * FEATURE_SIZE # 2023
+    num_inputs = FIELD_SIZE * FIELD_SIZE * FEATURE_SIZE  # 2023
     hidden_size = 256
-    num_outputs = len(ACTIONS) # 6
-    
+    num_outputs = len(ACTIONS)  # 6
+
     model_file = os.path.join('./models', MODEL_NAME)
-    self.device   = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     self.current_round = 0
 
     # Agent Position history before normalization
-    self.agent_coord_history = deque([],7)
+    self.agent_coord_history = deque([], 7)
 
-    
     if os.path.isfile(model_file) & USING_PRETRAINED:
         print("Using pretrained model")
-        self.model = ActorCriticLSTM(num_inputs, num_outputs, hidden_size).to(self.device)
+        self.model = ActorCriticLSTM(
+            num_inputs, num_outputs, hidden_size).to(self.device)
         self.model.load_state_dict(torch.load(model_file))
     else:
         print("Using new model")
         self.logger.info("Setting up model from scratch.")
-        self.model = ActorCriticLSTM(num_inputs, num_outputs, hidden_size).to(self.device)
+        self.model = ActorCriticLSTM(
+            num_inputs, num_outputs, hidden_size).to(self.device)
 
 
 def normalize_state(game_state):
@@ -161,7 +168,7 @@ def normalize_state(game_state):
         Returns: 
             action_map (func): function to map action in normalized state to action in input_state
             reverse_action_map (func): function to map action in input_state to action in normalized state.
-    
+
     Author: Luke Voss
     """
     if game_state is None:
@@ -172,7 +179,6 @@ def normalize_state(game_state):
     transposed = False
     x_flipped = False
     y_flipped = False
-
 
     def flip_tuple(t, flip_x, flip_y):
         """
@@ -191,11 +197,11 @@ def normalize_state(game_state):
         if flip_y:
             y = 16 - y
         return x, y
-    
+
     # Make use of diagonal symmetry
     def transpose_tuple(t):
         return t[1], t[0]
-    
+
     # Define mapping for actions
     action_mapping = {
         'RIGHT': 'UP',
@@ -205,7 +211,7 @@ def normalize_state(game_state):
         'WAIT': 'WAIT',
         'BOMB': 'BOMB'
     }
-    
+
     def map_action(a, flip_x, flip_y, transpose):
         if flip_x:
             a = 'RIGHT' if a == 'LEFT' else ('LEFT' if a == 'RIGHT' else a)
@@ -214,7 +220,7 @@ def normalize_state(game_state):
         if transpose:
             a = action_mapping.get(a, a)
         return a
-    
+
     def map_reverse_action(a, flip_x, flip_y, transpose):
         if transpose:
             a = action_mapping.get(a, a)
@@ -223,42 +229,54 @@ def normalize_state(game_state):
         if flip_y:
             a = 'UP' if a == 'DOWN' else ('DOWN' if a == 'UP' else a)
         return a
-    
+
     if x_coord_agent > 8:
         game_state['field'] = np.flipud(game_state['field'])
-        game_state['bombs'] = [(flip_tuple(pos, True, False), time) for pos, time in game_state['bombs']]
+        game_state['bombs'] = [(flip_tuple(pos, True, False), time)
+                               for pos, time in game_state['bombs']]
         game_state['explosion_map'] = np.flipud(game_state['explosion_map'])
-        game_state['coins'] = [flip_tuple(coin, True, False) for coin in game_state['coins']]
+        game_state['coins'] = [flip_tuple(
+            coin, True, False) for coin in game_state['coins']]
         name, score, can_place_bomb, pos = game_state['self']
-        game_state['self'] = (name, score, can_place_bomb, flip_tuple(pos, True, False))
-        game_state['others'] = [(name, score, can_place_bomb, flip_tuple(pos, True, False)) for name, score, can_place_bomb, pos in game_state['others']]
+        game_state['self'] = (name, score, can_place_bomb,
+                              flip_tuple(pos, True, False))
+        game_state['others'] = [(name, score, can_place_bomb, flip_tuple(
+            pos, True, False)) for name, score, can_place_bomb, pos in game_state['others']]
         x_flipped = True
 
     if y_coord_agent > 8:
         game_state['field'] = np.fliplr(game_state['field'])
-        game_state['bombs'] = [(flip_tuple(pos, False, True), time) for pos, time in game_state['bombs']]
+        game_state['bombs'] = [(flip_tuple(pos, False, True), time)
+                               for pos, time in game_state['bombs']]
         game_state['explosion_map'] = np.fliplr(game_state['explosion_map'])
-        game_state['coins'] = [flip_tuple(coin, False, True) for coin in game_state['coins']]
+        game_state['coins'] = [flip_tuple(
+            coin, False, True) for coin in game_state['coins']]
         name, score, can_place_bomb, pos = game_state['self']
-        game_state['self'] = (name, score, can_place_bomb, flip_tuple(pos, False, True))
-        game_state['others'] = [(name, score, can_place_bomb, flip_tuple(pos, False, True)) for name, score, can_place_bomb, pos in game_state['others']]
+        game_state['self'] = (name, score, can_place_bomb,
+                              flip_tuple(pos, False, True))
+        game_state['others'] = [(name, score, can_place_bomb, flip_tuple(
+            pos, False, True)) for name, score, can_place_bomb, pos in game_state['others']]
         y_flipped = True
 
     agent_x_update, agent_y_update = game_state['self'][3]
 
     if agent_y_update > agent_x_update:
         game_state['field'] = np.transpose(game_state['field'])
-        game_state['bombs'] = [(transpose_tuple(pos), time) for pos, time in game_state['bombs']]
+        game_state['bombs'] = [(transpose_tuple(pos), time)
+                               for pos, time in game_state['bombs']]
         game_state['explosion_map'] = np.transpose(game_state['explosion_map'])
-        game_state['coins'] = [transpose_tuple(coin) for coin in game_state['coins']]
+        game_state['coins'] = [transpose_tuple(
+            coin) for coin in game_state['coins']]
         name, score, can_place_bomb, pos = game_state['self']
-        game_state['self'] = (name, score, can_place_bomb, transpose_tuple(pos))
+        game_state['self'] = (name, score, can_place_bomb,
+                              transpose_tuple(pos))
         game_state['others'] = [(name, score, can_place_bomb, transpose_tuple(pos)) for name, score, can_place_bomb, pos
                                 in game_state['others']]
         transposed = True
 
-    action_map = lambda a: map_action(a, x_flipped, y_flipped, transposed)
-    reverse_action_map = lambda a: map_reverse_action(a, x_flipped, y_flipped, transposed)
+    def action_map(a): return map_action(a, x_flipped, y_flipped, transposed)
+    def reverse_action_map(a): return map_reverse_action(
+        a, x_flipped, y_flipped, transposed)
 
     return action_map, reverse_action_map
 
@@ -278,7 +296,7 @@ def state_to_features(game_state: dict) -> np.array:
 
         Parameter
             game_state:  A dictionary describing the current game board.
-        
+
         Return: 
             np.array of size 15x15x7
 
@@ -287,9 +305,9 @@ def state_to_features(game_state: dict) -> np.array:
     # Handle the case when the game_state is None
     if game_state is None:
         return None
-    
+
     # Initialize the feature vector
-    feature_vector = np.zeros((17,17,7), dtype=bool) # TODO type is ok?
+    feature_vector = np.zeros((17, 17, 7), dtype=bool)  # TODO type is ok?
 
     # Extract relevant information from the game_state
     field = game_state['field']
@@ -300,33 +318,35 @@ def state_to_features(game_state: dict) -> np.array:
     explosion_map = game_state['explosion_map']
 
     # Set feature bits based on extracted information
-    feature_vector[:,:,0] = (field == -1) # Walls
-    feature_vector[:,:,1] = (field == 1) # Creates
-    feature_vector[x_agent,y_agent,2] = 1  # Agent #TODO test if x and y axis are correct
-    
-    for _, opponent in enumerate(opponents): 
+    feature_vector[:, :, 0] = (field == -1)  # Walls
+    feature_vector[:, :, 1] = (field == 1)  # Creates
+    # Agent #TODO test if x and y axis are correct
+    feature_vector[x_agent, y_agent, 2] = 1
+
+    for _, opponent in enumerate(opponents):
         x_coord, y_coord = opponent[3]
-        feature_vector[x_coord,y_coord,3] = 1 # Opponents
-    
+        feature_vector[x_coord, y_coord, 3] = 1  # Opponents
+
     for _, bomb in enumerate(bombs):
         x_coord, y_coord = bomb[0]
-        feature_vector[x_coord,y_coord,4] = 1 # Bombs
-    
+        feature_vector[x_coord, y_coord, 4] = 1  # Bombs
+
     for _, coin in enumerate(coins):
         x_coord, y_coord = coin
-        feature_vector[x_coord,y_coord,5] = 1 # Coins
+        feature_vector[x_coord, y_coord, 5] = 1  # Coins
 
-    feature_vector[:,:,6] = (explosion_map != 0) # Explosions
+    feature_vector[:, :, 6] = (explosion_map != 0)  # Explosions
 
     # TODO: do we have to include the walls on border for training? or does this work to reduce dimension?
-    feature_vector = feature_vector[1:16,1:16,:]
+    feature_vector = feature_vector[1:16, 1:16, :]
 
     return torch.tensor(feature_vector.flatten(), dtype=torch.float32)
 
-def reset_self(self):
-    self.agent_coord_history = deque([],7)
 
-    
+def reset_self(self):
+    self.agent_coord_history = deque([], MAX_COORD_HISTORY)
+
+
 def act(self, game_state: dict) -> str:
     """
     Agent parses the input, thinks, and take a decision.
@@ -336,10 +356,10 @@ def act(self, game_state: dict) -> str:
         Parameter:
             self: The same object that is passed to all of your callbacks.
             game_state (dict): The dictionary that describes everything on the board, in-place normalization.
-        
+
         Return:
             next_action (str): The action to take as a string.
-    
+
     Author: Luke Voss
     """
     if game_state["round"] != self.current_round:
@@ -350,31 +370,18 @@ def act(self, game_state: dict) -> str:
     self.agent_coord_history.append(game_state['self'][3])
 
     # IMPORTANT: This normalized the state also in game_events_ocurred
-    self.action_map, self.reverse_action_map = normalize_state(game_state) 
+    self.action_map, self.reverse_action_map = normalize_state(game_state)
     feature_vector = state_to_features(game_state).to(self.device)
     self.dist, self.value = self.model(feature_vector)
 
-
     if self.train:
         # Exploration: Sample from Action Distribution
-        idx_action = self.dist.sample() 
-        self.action_logprob = self.dist.log_prob(idx_action) 
+        idx_action = self.dist.sample()
+        self.action_logprob = self.dist.log_prob(idx_action)
     else:
         # Exploitation: Get Action with higest probability
-        idx_action = self.dist.probs.argmax() # TODO this correct?
-    
-    
+        idx_action = self.dist.probs.argmax()  # TODO this correct?
+
     next_action = ACTIONS[idx_action]
 
     return self.action_map(next_action)
-    
-
-
-    
-
-
-    
-
-
-
-   
