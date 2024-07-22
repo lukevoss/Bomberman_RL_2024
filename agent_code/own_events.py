@@ -1,5 +1,8 @@
+from typing import List, Tuple, Any, Dict
+
 import events as e
 from settings import MAX_STEPS
+
 
 # Dense Rewards
 CONSTANT_PENALTY = "Constant Penalty"
@@ -53,107 +56,60 @@ def is_in_explosion(explosion_map, x_agent, y_agent):
     return explosion_map[x_agent, y_agent] != 0
 
 
-def is_standing_on_bomb(x_bomb, y_bomb, x_agent, y_agent):
-    return x_bomb == x_agent and y_bomb == y_agent
-
-
-def is_in_reach_of_bomb(x_bomb, y_bomb, x_agent, y_agent, field):
-    """
-    Determine if an agent is within the blast radius of a bomb either horizontally or vertically.
-    """
-    return (is_in_directional_reach_of_bomb(x_bomb, y_bomb, x_agent, y_agent, field, 'x') or
-            is_in_directional_reach_of_bomb(x_bomb, y_bomb, x_agent, y_agent, field, 'y'))
-
-
-def is_in_directional_reach_of_bomb(x_bomb, y_bomb, x_agent, y_agent, field, direction):
-    """
-    Check if the agent is in the reach of a bomb in a specific direction.
-
-    :param direction: 'x' for horizontal or 'y' for vertical check
-    :return: True if the agent is within reach along the specified direction, False otherwise
-    """
-    if direction == 'x':
-        difference = x_bomb - x_agent
-        aligned = y_bomb == y_agent
-        fixed_coord = y_agent
-        dynamic_coord = x_agent
-    elif direction == 'y':
-        difference = y_bomb - y_agent
-        aligned = x_bomb == x_agent
-        fixed_coord = x_agent
-        dynamic_coord = y_agent
-    else:
-        return False
-
-    step = 1 if difference > 0 else -1
-
-    if abs(difference) <= 3 and aligned:
-        for i in range(1, abs(difference) + 1):
-            if has_obstacle_in_path(dynamic_coord + i * step, fixed_coord, field, is_horizontal=(direction == 'x')):
+def is_clear_path(x_agent: int, y_agent: int, bomb: Tuple[int, int], field: List[List[int]]) -> bool:
+    if x_agent == bomb[0]:  # Same column
+        step = 1 if y_agent < bomb[1] else -1
+        for y in range(y_agent + step, bomb[1], step):
+            if field[x_agent][y] == -1:
                 return False
-        return True
-    else:
-        return False
+    elif y_agent == bomb[1]:  # Same row
+        step = 1 if x_agent < bomb[0] else -1
+        for x in range(x_agent + step, bomb[0], step):
+            if field[x][y_agent] == -1:
+                return False
+    return True
 
 
-def has_obstacle_in_path(dynamic_coord, fixed_coord, field, is_horizontal):
-    """
-    Check for an obstacle in the path at a specific position.
-    """
-    if is_horizontal:
-        return field[fixed_coord][dynamic_coord] == -1
-    else:
-        return field[dynamic_coord][fixed_coord] == -1
+def is_dangerous_bomb(x_agent: int, y_agent: int, bomb: Tuple[int, int], field: List[List[int]]) -> bool:
+    """Check if a bomb is dangerous and has a clear path to the agent."""
+    return (bomb[0] == x_agent or bomb[1] == y_agent) and abs(bomb[0] - x_agent) + abs(bomb[1] - y_agent) <= 3 and is_clear_path(x_agent, y_agent, bomb, field)
+
+
+def filter_dangerous_bombs(x_agent: int, y_agent: int, bombs: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+    """Filters bombs that are in the same row or column as the agent and within a distance of 3."""
+    return [
+        bomb for bomb in bombs
+        if is_dangerous_bomb(x_agent, y_agent, bomb)
+    ]
+
+
+def sort_bombs_by_distance(x_agent: int, y_agent: int, bombs: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+    """Sorts bombs by Manhattan distance to the agent."""
+    return sorted(bombs, key=lambda bomb: abs(bomb[0] - x_agent) + abs(bomb[1] - y_agent))
 
 
 def filter_and_sort_bombs(x_agent, y_agent, bombs):
     """
     Filters and sorts bombs by their Manhattan distance to the agent's position, considering only those
-    bombs that are either in the same row (y coordinate) or the same column (x coordinate) as the agent, thus being a potential danger.
+    bombs that are either in the same row (y coordinate) or the same column (x coordinate) as the agent and having a distance of 3 or less, thus being a potential danger.
     """
-    # Filter bombs to those that share an x or y coordinate with the agent
-    dangerous_bombs = [
-        bomb for bomb in bombs
-        if (bomb[0] == x_agent or bomb[1] == y_agent) and
-           (abs(bomb[0] - x_agent) + abs(bomb[1] - y_agent) <= 3)
-    ]
+    dangerous_bombs = filter_dangerous_bombs(x_agent, y_agent, bombs)
 
-    # Sort the filtered list of bombs by their Manhattan distance to the agent
     if dangerous_bombs:
-        dangerous_bombs = sorted(dangerous_bombs, key=lambda bomb: abs(
-            bomb[0] - x_agent) + abs(bomb[1] - y_agent))
+        dangerous_bombs = sort_bombs_by_distance(
+            x_agent, y_agent, dangerous_bombs)
 
     return dangerous_bombs
 
 
-def is_in_danger(x_agent, y_agent, field, explosion_map, bombs):
+def is_in_danger(x_agent, y_agent, explosion_map, sorted_dangerous_bombs):
     """
     Function checks if given agent position is dangerous
-
-        Parameter: 
-            x_agent(int): x position of agent
-            y_agent(int): y position of agent
-            field (np.array(width, height)): Current field as in game_state['field']
-            explosion_map (np.array(width, height)): Current explosions as in game_state['explosion_map']
-            bombs(list): list of (x,y) tuple of each bombs coordinates
-
-        Returns:
-            (bool): True if in danger 
-
-    Author: Luke Voss
     """
     if is_in_explosion(explosion_map, x_agent, y_agent):
         return True
-    if not bombs:
-        return False
-
-    for (x_bomb, y_bomb) in bombs:
-
-        if is_standing_on_bomb(x_bomb, y_bomb, x_agent, y_agent):
-            return True
-
-        if is_in_reach_of_bomb(x_bomb, y_bomb, x_agent, y_agent, field):
-            return True
+    if sorted_dangerous_bombs:
+        return True
 
     return False
 
@@ -187,11 +143,21 @@ def has_won_the_game(living_opponents, score_self, events, steps_of_round):
         raise ValueError("Invalid game state or undefined events")
 
 
-def not_escaped_danger(self_action):
+def not_escaping_danger(self_action):
     return self_action == 'WAIT' or self_action == 'BOMB'
 
 
-def escaped_danger
+def is_escaping_danger(x_agent, y_agent, self_action, field, sorted_dangerous_bombs):
+    x_new, y_new = march_forward(x_agent, y_agent, self_action)
+    if valid_action(x_new, y_new, field):
+        if sorted_dangerous_bombs:
+            closest_bomb = sorted_dangerous_bombs[0]
+            if distance_increased(closest_bomb[0], closest_bomb[1], x_agent, y_agent, x_new, y_new):
+                return True
+            else:
+                return False
+    else:
+        return False
 
 
 def valid_action(x_new, y_new, field):
@@ -223,20 +189,14 @@ def add_own_events(self, old_game_state, self_action, events_src, end_of_round) 
         if has_won_the_game(living_opponents, score_self, events, steps_of_round):
             events.append(WON_GAME)
 
-    if is_in_danger(x_agent, y_agent, field, explosion_map, sorted_dangerous_bombs):
-        if not_escaped_danger(self_action):
+    if is_in_danger(x_agent, y_agent, explosion_map, sorted_dangerous_bombs):
+        if not_escaping_danger(self_action):
             events.append(NOT_ESCAPE)
+        elif is_escaping_danger(x_agent, y_agent, self_action, field, sorted_dangerous_bombs):
+            events.append(ESCAPE)
         else:
-            x_new, y_new = march_forward(x_agent, y_agent, self_action)
-            if valid_action(x_new, y_new, field):
-                # TODO: only for closest bomb, or the one which makes it dangerous
-                for (x_bomb, y_bomb) in sorted_dangerous_bombs:
-                    if distance_increased(x_bomb, y_bomb, x_agent, y_agent, x_new, y_new):
-                        events.append(ESCAPE)
-                    else:
-                        events.append(NOT_ESCAPE)
-            else:
-                events.append(NOT_ESCAPE)
+            events.append(NOT_ESCAPE)
+
     else:
         # Check if in loop
         self.loop_count = self.agent_coord_history.count((x_agent, y_agent))
@@ -247,10 +207,10 @@ def add_own_events(self, old_game_state, self_action, events_src, end_of_round) 
 
         if self_action == 'WAIT':
             # Reward the agent if waiting is necessary.
-            if (danger(x_agent+1, y_agent, field, explosion_map, bombs) or
-                danger(x_agent-1, y_agent, field, explosion_map, bombs) or
-                danger(x_agent, y_agent+1, field, explosion_map, bombs) or
-                    danger(x_agent, y_agent-1, field, explosion_map, bombs)):
+            if (is_in_danger(x_agent+1, y_agent, field, explosion_map, bombs) or
+                is_in_danger(x_agent-1, y_agent, field, explosion_map, bombs) or
+                is_in_danger(x_agent, y_agent+1, field, explosion_map, bombs) or
+                    is_in_danger(x_agent, y_agent-1, field, explosion_map, bombs)):
                 events.append(WAITED_NECESSARILY)
             else:
                 events.append(WAITED_UNNECESSARILY)
