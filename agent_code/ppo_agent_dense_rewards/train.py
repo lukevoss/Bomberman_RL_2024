@@ -48,11 +48,12 @@ WAITED_UNNECESSARILY = "WAITED_UNNECESSARILY"
 CLOSER_TO_PLAYERS = "CLOSER_TO_PLAYERS"
 AWAY_FROM_PLAYERS = "AWAY_FROM_PLAYERS"
 
-#Hyper parameters:
+# Hyper parameters:
 LR = 1e-4
-NUM_STEPS        = 100
-MINI_BATCH_SIZE  = 25
-PPO_EPOCHS       = 8
+NUM_STEPS = 100
+MINI_BATCH_SIZE = 25
+PPO_EPOCHS = 8
+
 
 def compute_gae(next_value, rewards, masks, values, gamma=0.95, tau=0.95):
     """
@@ -76,12 +77,15 @@ def compute_gae(next_value, rewards, masks, values, gamma=0.95, tau=0.95):
     gae = 0
     returns = []
     for step in reversed(range(len(rewards))):
-        delta = rewards[step] + gamma * values[step + 1] * masks[step] - values[step]
+        delta = rewards[step] + gamma * \
+            values[step + 1] * masks[step] - values[step]
         gae = delta + gamma * tau * masks[step] * gae
         returns.insert(0, gae + values[step])
     return returns
 
 # Proximal Policy Optimization Algorithm
+
+
 def ppo_iter(mini_batch_size, states, actions, log_probs, returns, advantage):
     """
     Iterator to generate mini-batches of training data for the Proximal Policy Optimization (PPO) algorithm
@@ -108,6 +112,7 @@ def ppo_iter(mini_batch_size, states, actions, log_probs, returns, advantage):
         rand_ids = np.random.randint(0, batch_size, mini_batch_size)
         yield states[rand_ids, :], actions[rand_ids, :], log_probs[rand_ids, :], returns[rand_ids, :], advantage[rand_ids, :]
 
+
 def ppo_update(self, ppo_epochs, mini_batch_size, states, actions, log_probs, returns, advantages, clip_param=0.2):
     """
      Update step of the Proximal Policy Optimization (PPO) algorithm. 
@@ -124,7 +129,7 @@ def ppo_update(self, ppo_epochs, mini_batch_size, states, actions, log_probs, re
             advantages: array containing the advantages of taking the actions, which guide the policy update
             clip_param: controls the clipping of the policy update. It determines how much the new policy can deviate from the old policy.
                 A smaller clip_param leads to more conservative updates
-    
+
     Author: Luke Voss
     """
     for i in range(ppo_epochs):
@@ -138,8 +143,9 @@ def ppo_update(self, ppo_epochs, mini_batch_size, states, actions, log_probs, re
 
             ratio = (new_log_probs - old_log_probs).exp()
             surr1 = ratio * advantage
-            surr2 = torch.clamp(ratio, 1.0 - clip_param, 1.0 + clip_param) * advantage
-            actor_loss  = - torch.min(surr1, surr2).mean()
+            surr2 = torch.clamp(ratio, 1.0 - clip_param,
+                                1.0 + clip_param) * advantage
+            actor_loss = - torch.min(surr1, surr2).mean()
             critic_loss = (return_ - value).pow(2).mean()
 
             loss = 0.5 * critic_loss + actor_loss - 0.001 * entropy
@@ -148,11 +154,12 @@ def ppo_update(self, ppo_epochs, mini_batch_size, states, actions, log_probs, re
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
-            
+
         if n_updates > 0:
             mean_loss = mean_loss/n_updates
 
     return mean_loss
+
 
 def setup_training(self):
     """
@@ -177,8 +184,8 @@ def setup_training(self):
     self.n_updates = 0
 
     self.round_rewards = 0
-    
-    self.optimizer = torch.optim.Adam(self.model.parameters(),lr=LR)
+
+    self.optimizer = torch.optim.Adam(self.model.parameters(), lr=LR)
     # self.optimizer =  torch.optim.Adam([
     #                     {'params': self.model.actor.parameters(), 'lr': LR_ACTOR},
     #                     {'params': self.model.critic.parameters(), 'lr': LR_CRITIC}
@@ -199,15 +206,15 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
     Author: Luke Voss
     """
-    self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
+    self.logger.debug(f'Encountered game event(s) {", ".join(
+        map(repr, events))} in step {new_game_state["step"]}')
 
     # Hand out self shaped events
     events = get_events(self, old_game_state, self_action, events)
 
-   
-
     normalized_action = self.reverse_action_map(self_action)
-    idx_normalized_action = torch.tensor([ACTIONS.index(normalized_action)],device=self.device)
+    idx_normalized_action = torch.tensor(
+        [ACTIONS.index(normalized_action)], device=self.device)
     done = 0
     reward = reward_from_events(self, events)
     self.round_rewards += reward
@@ -219,22 +226,23 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     self.values.append(self.value)
     self.masks.append(1 - done)
     self.log_probs.append(self.action_logprob.unsqueeze(0))
-    
-    
+
     if (len(self.actions) % NUM_STEPS) == 0:
         next_state = state_to_features(new_game_state).to(self.device)
         _, next_value = self.model(next_state)
-        returns = compute_gae(next_value, self.rewards, self.masks, self.values)
+        returns = compute_gae(next_value, self.rewards,
+                              self.masks, self.values)
 
-        returns   = torch.stack(returns).detach()
+        returns = torch.stack(returns).detach()
         log_probs = torch.stack(self.log_probs).detach()
-        values    = torch.stack(self.values).detach()
-        states    = torch.stack(self.states)
-        actions   = torch.stack(self.actions)
+        values = torch.stack(self.values).detach()
+        states = torch.stack(self.states)
+        actions = torch.stack(self.actions)
         advantages = returns - values
 
         # Update step of PPO algorithm
-        loss = ppo_update(self, PPO_EPOCHS, MINI_BATCH_SIZE, states, actions, log_probs, returns, advantages)
+        loss = ppo_update(self, PPO_EPOCHS, MINI_BATCH_SIZE,
+                          states, actions, log_probs, returns, advantages)
         self.loss_sum += loss
         self.n_updates += 1
 
@@ -244,7 +252,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         self.values = []
         self.masks = []
         self.log_probs = []
-        
+
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
     """
@@ -261,14 +269,15 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     """
 
     # Hand out self shaped events
-    events = get_events(self,last_game_state,last_action,events)
+    events = get_events(self, last_game_state, last_action, events)
 
-    self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
+    self.logger.debug(f'Encountered event(s) {
+                      ", ".join(map(repr, events))} in final step')
     n_round = last_game_state['round']
 
-
     normalized_action = self.reverse_action_map(last_action)
-    idx_normalized_action = torch.tensor([ACTIONS.index(normalized_action)],device=self.device)
+    idx_normalized_action = torch.tensor(
+        [ACTIONS.index(normalized_action)], device=self.device)
     reward = reward_from_events(self, events)
     self.round_rewards += reward
     done = 1
@@ -280,25 +289,28 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.values.append(self.value)
     self.masks.append(1-done)
     self.log_probs.append(self.action_logprob.unsqueeze(0))
-    
-    if (last_game_state['step'] % NUM_STEPS) == 0:
-        next_value = 0 # Next value doesn't exist
-        returns = compute_gae(next_value, self.rewards, self.masks, self.values)
 
-        returns   = torch.stack(returns).detach()
+    if (last_game_state['step'] % NUM_STEPS) == 0:
+        next_value = 0  # Next value doesn't exist
+        returns = compute_gae(next_value, self.rewards,
+                              self.masks, self.values)
+
+        returns = torch.stack(returns).detach()
         log_probs = torch.stack(self.log_probs).detach()
-        values    = torch.stack(self.values).detach()
-        states    = torch.stack(self.states)
-        actions   = torch.stack(self.actions)
+        values = torch.stack(self.values).detach()
+        states = torch.stack(self.states)
+        actions = torch.stack(self.actions)
         advantages = returns - values
 
         # Update step of PPO algorithm
         if states.size(0) > 0:
-            loss = ppo_update(self, PPO_EPOCHS, MINI_BATCH_SIZE, states, actions, log_probs, returns, advantages)
+            loss = ppo_update(self, PPO_EPOCHS, MINI_BATCH_SIZE,
+                              states, actions, log_probs, returns, advantages)
             self.loss_sum += loss
             self.n_updates += 1
-        
-        print(' Total rewards of {}, Loss: {}'.format(self.round_rewards,self.loss_sum/self.n_updates))
+
+        print(' Total rewards of {}, Loss: {}'.format(
+            self.round_rewards, self.loss_sum/self.n_updates))
 
         self.states = []
         self.actions = []
@@ -327,6 +339,7 @@ def check_position(x, y, arena, object):
     elif object == 'wall':
         return arena[x, y] == -1
 
+
 def march_forward(x, y, direction):
     # Forward in direction.
     if direction == 'LEFT':
@@ -339,7 +352,8 @@ def march_forward(x, y, direction):
         y += 1
     return x, y
 
-def danger(x_agent, y_agent, field, explosion_map,bombs):
+
+def danger(x_agent, y_agent, field, explosion_map, bombs):
     """
     Function checks if Agent is currently in danger
 
@@ -351,21 +365,21 @@ def danger(x_agent, y_agent, field, explosion_map,bombs):
 
         Returns:
             (bool): True if in danger 
-    
+
     Author: Luke Voss
     """
     # TODO check if position in explosion for versatility
-    if explosion_map[x_agent,y_agent] != 0:
+    if explosion_map[x_agent, y_agent] != 0:
         return True
-    if not bombs: 
+    if not bombs:
         return False
-    
+
     for (x_bomb, y_bomb) in bombs:
 
         # Check if standing on it
         if x_bomb == x_agent and y_bomb == y_agent:
-            return True 
-        
+            return True
+
         x_difference = x_bomb - x_agent
         y_difference = y_bomb - y_agent
 
@@ -388,24 +402,19 @@ def danger(x_agent, y_agent, field, explosion_map,bombs):
                 if field[x_agent][y_agent + i * step] == -1:
                     return False
             return True
-        
+
     return False
 
 
-
-
-def get_events(self, old_game_state, self_action, events_src)->list:
+def get_events(self, old_game_state, self_action, events_src) -> list:
     """
     get events
     """
-    #events = copy.deepcopy(events_src)
+    # events = copy.deepcopy(events_src)
     events = events_src.copy()
 
-    # Check if agent is winner of game 
+    # Check if agent is winner of game
     events.append(CONSTANT_PENALTY)
-
-    
-
 
     field = old_game_state['field']
     x_agent, y_agent = old_game_state['self'][3]
@@ -420,65 +429,65 @@ def get_events(self, old_game_state, self_action, events_src)->list:
         if all(score_self > score for score in score_others):
             events.append(WON_GAME)
 
-
     is_in_danger = danger(x_agent, y_agent, field, explosion_map, bombs)
 
     # Check if in danger and reward if escaping
     if is_in_danger:
-        if self_action == 'WAIT' or self_action =='BOMB':
+        if self_action == 'WAIT' or self_action == 'BOMB':
             events.append(NOT_ESCAPE)
         else:
-            x_new, y_new = march_forward(x_agent,y_agent,self_action)
+            x_new, y_new = march_forward(x_agent, y_agent, self_action)
             # Test if action was valid
-            if field[x_new,y_new] == 0:
+            if field[x_new, y_new] == 0:
                 for (x_bomb, y_bomb) in bombs:
                     # Check if distance increased
-                    if ((abs(x_bomb - x_new) > abs(x_bomb - x_agent)) or 
-                        ((y_bomb - y_new) > abs(y_bomb - y_agent))):
+                    if ((abs(x_bomb - x_new) > abs(x_bomb - x_agent)) or
+                            ((y_bomb - y_new) > abs(y_bomb - y_agent))):
                         events.append(ESCAPE)
                     else:
                         events.append(NOT_ESCAPE)
-            else: 
+            else:
                 events.append(NOT_ESCAPE)
     else:
         # Check if in loop
-        self.loop_count = self.agent_coord_history.count((x_agent,y_agent))
-        
+        self.loop_count = self.agent_coord_history.count((x_agent, y_agent))
+
         # If the agent gets caught in a loop, he will be punished.
         if self.loop_count > 2:
             events.append(GET_IN_LOOP)
 
         if self_action == 'WAIT':
             # Reward the agent if waiting is necessary.
-            if (danger(x_agent+1,y_agent,field,explosion_map,bombs) or 
-                danger(x_agent-1,y_agent,field,explosion_map,bombs) or
-                danger(x_agent,y_agent+1,field,explosion_map,bombs) or 
-                danger(x_agent,y_agent-1,field,explosion_map,bombs)):
+            if (danger(x_agent+1, y_agent, field, explosion_map, bombs) or
+                danger(x_agent-1, y_agent, field, explosion_map, bombs) or
+                danger(x_agent, y_agent+1, field, explosion_map, bombs) or
+                    danger(x_agent, y_agent-1, field, explosion_map, bombs)):
                 events.append(WAITED_NECESSARILY)
             else:
                 events.append(WAITED_UNNECESSARILY)
-        
+
         elif self_action != 'BOMB':
-            x_new, y_new = march_forward(x_agent,y_agent,self_action)
+            x_new, y_new = march_forward(x_agent, y_agent, self_action)
             for opponent in opponents:
                 x_opponent, y_opponent = opponent[3]
 
                 # Check if distance decreased
-                if ((abs(x_opponent - x_new) > abs(x_opponent - x_agent)) or 
-                    ((y_opponent - y_new) > abs(y_opponent - y_agent))):
+                if ((abs(x_opponent - x_new) > abs(x_opponent - x_agent)) or
+                        ((y_opponent - y_new) > abs(y_opponent - y_agent))):
                     events.append(CLOSER_TO_PLAYERS)
                 else:
                     events.append(AWAY_FROM_PLAYERS)
 
             for x_coin, y_coin in coins:
                 # Check if distance decreased
-                if ((abs(x_coin - x_new) > abs(x_coin - x_agent)) or 
-                    ((y_coin - y_new) > abs(y_coin - y_agent))):
+                if ((abs(x_coin - x_new) > abs(x_coin - x_agent)) or
+                        ((y_coin - y_new) > abs(y_coin - y_agent))):
                     events.append(CLOSER_TO_COIN)
                 else:
                     events.append(AWAY_FROM_COIN)
 
     return events
+
 
 def reward_from_events(self, events: List[str]) -> int:
     """
@@ -509,9 +518,9 @@ def reward_from_events(self, events: List[str]) -> int:
         AWAY_FROM_PLAYERS: -aggressive_action,
         CLOSER_TO_COIN: coin_action,
         AWAY_FROM_COIN: -coin_action,
-        CONSTANT_PENALTY : -0.001,
+        CONSTANT_PENALTY: -0.001,
         WON_GAME: 10,
-        GET_IN_LOOP : -0.025 * self.loop_count,
+        GET_IN_LOOP: -0.025 * self.loop_count,
 
         # DEFAULT EVENTS
         e.INVALID_ACTION: -1,
@@ -527,12 +536,11 @@ def reward_from_events(self, events: List[str]) -> int:
 
         # kills
         e.KILLED_OPPONENT: 5,
-        e.KILLED_SELF: -10, # TODO: make killed self positiv since its better to kill himself, than to get killed
+        # TODO: make killed self positiv since its better to kill himself, than to get killed
+        e.KILLED_SELF: -8,
         e.GOT_KILLED: -10,
         e.OPPONENT_ELIMINATED: 0,
     }
-
-
 
     reward_sum = 0
     for event in events:
@@ -540,4 +548,3 @@ def reward_from_events(self, events: List[str]) -> int:
             reward_sum += game_rewards[event]
     self.logger.info(f"Awarded {reward_sum} for events {', '.join(events)}")
     return reward_sum
-
