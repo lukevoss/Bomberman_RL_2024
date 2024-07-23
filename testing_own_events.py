@@ -9,6 +9,7 @@ Right -> Down
 
 import unittest
 import numpy as np
+from numpy.testing import assert_array_equal
 
 from agent_code.own_events import *
 
@@ -25,7 +26,7 @@ class TestOwnEvents(unittest.TestCase):
             [0, 0, 0, 0, 0],
             [0, -1, 0, 0, 0],
             [0, 0, 0, -1, 0],
-            [0, 0, 0, 0, 0],
+            [0, 0, 1, 0, 0],
             [0, 0, 0, 0, 0]
         ])
         self.game_field = np.array([
@@ -34,7 +35,7 @@ class TestOwnEvents(unittest.TestCase):
             [-1,  0, -1,  0,  0,  0, -1],
             [-1,  0,  0,  0, -1,  0, -1],
             [-1,  0,  0,  0,  0,  0, -1],
-            [-1,  0,  0,  0,  0,  1, -1],
+            [-1,  0,  0,  0,  1,  1, -1],
             [-1, -1, -1, -1, -1, -1, -1],
         ])
         self.opponents = [
@@ -82,6 +83,8 @@ class TestOwnEvents(unittest.TestCase):
         self.assertFalse(is_dangerous_bomb(1, 0, (1, 2), self.field))
         # Bomb not in same row or column
         self.assertFalse(is_dangerous_bomb(2, 2, (4, 4), self.field))
+        # Bomb goes through crates
+        self.assertTrue(is_dangerous_bomb(3, 1, (3, 3), self.field))
 
     def test_filter_dangerous_bombs(self):
         bombs = [(0, 3), (1, 0), (3, 2), (4, 4)]
@@ -263,12 +266,108 @@ class TestOwnEvents(unittest.TestCase):
         self.assertTrue(increased_distance(0, 1, 0, 2, 0, 0))
         self.assertTrue(increased_distance(0, 1, 1, 1, 0, 0))
 
+    def test_decreased_distance(self):
+        self.assertTrue(decreased_distance(0, 1, 0, 0, 0, 0))
+        self.assertFalse(decreased_distance(0, 1, 0, 2, 0, 0))
+        self.assertFalse(decreased_distance(0, 1, 1, 1, 0, 0))
+
     def test_got_in_loop(self):
         agent_coord_history = deque(
             [(0, 0), (0, 1), (0, 0), (0, 1), (0, 0), (1, 0)], 6)
         self.assertTrue(got_in_loop(0, 0, agent_coord_history))
         self.assertFalse(got_in_loop(0, 1, agent_coord_history))
         self.assertFalse(got_in_loop(1, 0, agent_coord_history))
+
+    def test_waited_necessary(self):
+        field = np.array([
+            [-1, -1, -1, -1, -1],
+            [-1,  1,  0,  0, -1],
+            [-1,  0, -1,  0, -1],
+            [-1,  0,  0,  0, -1],
+            [-1, -1, -1, -1, -1]
+        ])
+        explosion_map = np.array([
+            [-1, -1, -1, -1, -1],
+            [-1,  0,  0,  1, -1],
+            [-1,  0,  0,  0, -1],
+            [-1,  0,  0,  0, -1],
+            [-1, -1, -1, -1, -1]
+        ])
+        bombs = [(3, 3)]
+        # Waiting because of bomb
+        self.assertTrue(waited_necessarily(2, 1, field, explosion_map, bombs))
+        # Waiting because of explosion
+        self.assertTrue(waited_necessarily(1, 2, field, explosion_map, bombs))
+        # No need to Wait
+        bombs = None
+        self.assertFalse(waited_necessarily(2, 1, field, explosion_map, bombs))
+
+    def test_find_closest_create(self):
+        # Test Crate Directly Adjacent
+        field = [
+            [0, -1, 0],
+            [0, 0, 1],
+            [0, 0, 0]
+        ]
+        self.assertEqual(find_closest_crate(1, 1, field), (1, 2))
+        self.assertEqual(find_closest_crate(0, 0, field), (1, 2))
+
+        # Test No Crates
+        field[1][2] = 0
+        self.assertIsNone(find_closest_crate(1, 1, field))
+
+        # Test Multiple Crates Same Distance
+        field_multiple = [
+            [1, 0, 0],
+            [1, 0, 0],
+            [0, 0, 1]
+        ]
+        self.assertEqual(find_closest_crate(1, 1, field_multiple), (1, 0))
+        self.assertEqual(find_closest_crate(0, 2, field_multiple), (0, 0))
+
+    def test_has_destroyed_target(self):
+        events = ['BOMB_EXPLODED', 'KILLED_OPPONENT']
+        self.assertTrue(has_destroyed_target(events))
+
+        events = ['BOMB_EXPLODED', 'CRATE_DESTROYED']
+        self.assertTrue(has_destroyed_target(events))
+
+        events = ['CRATE_DESTROYED']
+        self.assertFalse(has_destroyed_target(events))
+
+    def test_is_in_game_grid(self):
+        self.assertTrue(is_in_game_grid(0, 0, 3, 3))
+        self.assertFalse(is_in_game_grid(3, 3, 3, 3))
+        self.assertFalse(is_in_game_grid(-1, 0, 3, 3))
+
+    def test_simulate_bomb_explosion(self):
+        bomb_simulated_field = np.array([
+            [-1, -1, -1, -1, -1, -1, -1],
+            [-1,  0,  0,  0,  0,  0, -1],
+            [-1,  0, -1,  2,  0,  0, -1],
+            [-1,  0,  0,  2, -1,  0, -1],
+            [-1,  0,  0,  2,  0,  0, -1],
+            [-1,  2,  2,  2,  2,  2, -1],
+            [-1, -1, -1, -1, -1, -1, -1],
+        ])
+        test_simulated_field, test_n_crates = simulate_bomb_explosion(
+            5, 3, self.game_field)
+        assert_array_equal(test_simulated_field, bomb_simulated_field)
+        self.assertEqual(test_n_crates, 2)
+
+        bomb_simulated_field = np.array([
+            [-1, -1, -1, -1, -1, -1, -1],
+            [-1,  0,  0,  2,  0,  0, -1],
+            [-1,  0, -1,  2,  2,  2, -1],
+            [-1,  0,  0,  2, -1,  0, -1],
+            [-1,  0,  0,  2,  0,  0, -1],
+            [-1,  0,  0,  2,  1,  1, -1],
+            [-1, -1, -1, -1, -1, -1, -1],
+        ])
+        test_simulated_field, test_n_crates = simulate_bomb_explosion(
+            2, 3, self.game_field)
+        assert_array_equal(test_simulated_field, bomb_simulated_field)
+        self.assertEqual(test_n_crates, 0)
 
 
 if __name__ == '__main__':

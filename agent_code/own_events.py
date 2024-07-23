@@ -105,12 +105,16 @@ def filter_and_sort_bombs(x_agent: int, y_agent: int, bombs: List[Tuple[int, int
     Filters and sorts bombs by their Manhattan distance to the agent's position, considering only those
     bombs that are either in the same row (y coordinate) or the same column (x coordinate) as the agent and having a distance of 3 or less, thus being a potential danger.
     """
-    dangerous_bombs = filter_dangerous_bombs(x_agent, y_agent, bombs, field)
+    if bombs:
+        dangerous_bombs = filter_dangerous_bombs(
+            x_agent, y_agent, bombs, field)
 
-    dangerous_bombs = sort_objects_by_distance(
-        x_agent, y_agent, dangerous_bombs)
+        dangerous_bombs = sort_objects_by_distance(
+            x_agent, y_agent, dangerous_bombs)
 
-    return dangerous_bombs
+        return dangerous_bombs
+    else:
+        return None
 
 
 def is_in_danger(x_agent: int, y_agent: int, explosion_map, sorted_dangerous_bombs: List[Tuple[int, int]]) -> bool:
@@ -199,11 +203,6 @@ def is_save_step(x_agent, y_agent, field, explosion_map, bombs):
             not is_in_danger(x_agent, y_agent, explosion_map, sorted_dangerous_bombs))
 
 
-# def distance_increased(x_bomb, y_bomb, x_agent, y_agent, x_new, y_new):
-#     return ((abs(x_bomb - x_new) > abs(x_bomb - x_agent)) or
-#             ((y_bomb - y_new) > abs(y_bomb - y_agent)))
-
-
 def got_in_loop(x_agent, y_agent, agent_coord_history):
     loop_count = agent_coord_history.count((x_agent, y_agent))
     return loop_count > 2
@@ -259,30 +258,25 @@ def has_destroyed_target(events):
         return e.KILLED_OPPONENT in events or e.CRATE_DESTROYED in events
 
 
-def has_missed_target(events):
-    if e.BOMB_EXPLODED in events:
-        return not (e.KILLED_OPPONENT in events or e.CRATE_DESTROYED in events)
-
-
 def is_in_game_grid(x, y, max_row, max_col):
     return 0 <= x < max_row and 0 <= y < max_col
 
 
-def simulate_bomb_explosion(x_agent, y_agent, field):
+def simulate_bomb_explosion(x_bomb, y_bomb, field):
     bomb_simulated_field = field.copy()
     max_row, max_col = len(field), len(field[0])
     number_of_destroying_crates = 0
 
     for dx, dy in DIRECTIONS:
         for dist in range(1, BOMB_POWER + 1):
-            nx, ny = x_agent + dx * dist, y_agent + dy * dist
+            nx, ny = x_bomb + dx * dist, y_bomb + dy * dist
             if is_in_game_grid(nx, ny, max_row, max_col) and bomb_simulated_field[nx][ny] != -1:
-                bomb_simulated_field[nx][ny] = UNSAFE_FIELD  # Mark as unsafe
                 if bomb_simulated_field[nx][ny] == 1:
                     number_of_destroying_crates += 1
+                bomb_simulated_field[nx][ny] = UNSAFE_FIELD  # Mark as unsafe
             else:
                 break
-    bomb_simulated_field[x_agent][y_agent] = UNSAFE_FIELD
+    bomb_simulated_field[x_bomb][y_bomb] = UNSAFE_FIELD
     return bomb_simulated_field, number_of_destroying_crates
 
 
@@ -313,11 +307,11 @@ def potentially_destroying_opponent(bomb_simulated_field, sorted_living_opponent
     return False
 
 
-def simulate_bomb(x_agent, y_agent, field, sorted_living_opponents):
+def simulate_bomb(x_bomb, y_bomb, field, sorted_living_opponents):
     """ Simulate the bomb explosion and evaluate its effects. """
     simulated_field, num_destroyed_crates = simulate_bomb_explosion(
-        x_agent, y_agent, field)
-    can_reach_safety = path_to_safety_exists(x_agent, y_agent, simulated_field)
+        x_bomb, y_bomb, field)
+    can_reach_safety = path_to_safety_exists(x_bomb, y_bomb, simulated_field)
     could_hit_opponent = potentially_destroying_opponent(
         simulated_field, sorted_living_opponents)
     is_effective = num_destroyed_crates > 0 or could_hit_opponent
@@ -410,7 +404,7 @@ def add_own_events(self, old_game_state, self_action, events_src, end_of_round, 
 
     if has_destroyed_target(events):
         events.append(DESTROY_TARGET)
-    elif has_missed_target(events):
+    else:
         events.append(MISSED_TARGET)
 
     if e.CRATE_DESTROYED in events:
