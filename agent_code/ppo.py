@@ -1,5 +1,3 @@
-
-
 def compute_gae(next_value, rewards, masks, values, gamma=0.95, tau=0.95):
     """
     Compute General Advantage Estimataion for a sequence of states rewards and value estimates.

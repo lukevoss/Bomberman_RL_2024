@@ -100,12 +100,12 @@ def sort_opponents_by_distance(x_agent: int, y_agent: int, living_opponents: Lis
         return sorted(living_opponents, key=lambda opponent: manhatten_distance(opponent[3][0], opponent[3][1], x_agent, y_agent))
 
 
-def filter_and_sort_bombs(x_agent: int, y_agent: int, bombs: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+def filter_and_sort_bombs(x_agent: int, y_agent: int, bombs: List[Tuple[int, int]], field) -> List[Tuple[int, int]]:
     """
     Filters and sorts bombs by their Manhattan distance to the agent's position, considering only those
     bombs that are either in the same row (y coordinate) or the same column (x coordinate) as the agent and having a distance of 3 or less, thus being a potential danger.
     """
-    dangerous_bombs = filter_dangerous_bombs(x_agent, y_agent, bombs)
+    dangerous_bombs = filter_dangerous_bombs(x_agent, y_agent, bombs, field)
 
     dangerous_bombs = sort_objects_by_distance(
         x_agent, y_agent, dangerous_bombs)
@@ -125,7 +125,7 @@ def is_in_danger(x_agent: int, y_agent: int, explosion_map, sorted_dangerous_bom
     return False
 
 
-def has_highest_score(living_opponents, score_self):
+def has_highest_score(living_opponents, score_self: int) -> bool:
     if living_opponents:
         score_opponents = [opponent[1] for opponent in living_opponents]
         if all(score_self > score for score in score_opponents):
@@ -137,7 +137,7 @@ def has_highest_score(living_opponents, score_self):
         return True
 
 
-def has_won_the_game(living_opponents, score_self, events, steps_of_round):
+def has_won_the_game(living_opponents, score_self: int, events: List[str], steps_of_round: int) -> bool:
     # TODO: Can killed agent still win?
     # TODO: How can we access killed opponents for score
 
@@ -160,10 +160,10 @@ def not_escaping_danger(self_action):
 
 def is_escaping_danger(x_agent, y_agent, self_action, field, sorted_dangerous_bombs):
     x_new, y_new = march_forward(x_agent, y_agent, self_action)
-    if valid_action(x_new, y_new, field):
+    if is_valid_action(x_new, y_new, field):
         if sorted_dangerous_bombs:
             closest_bomb = sorted_dangerous_bombs[0]
-            if distance_increased(closest_bomb[0], closest_bomb[1], x_agent, y_agent, x_new, y_new):
+            if increased_distance(x_agent, y_agent, x_new, y_new, closest_bomb[0], closest_bomb[1]):
                 return True
             else:
                 return False
@@ -171,9 +171,11 @@ def is_escaping_danger(x_agent, y_agent, self_action, field, sorted_dangerous_bo
         return False
 
 
-def has_escaped_danger(x_agent, y_agent, self_action, field, sorted_dangerous_bombs, explosion_map):
+def has_escaped_danger(x_agent, y_agent, self_action, field, bombs, explosion_map):
     x_new, y_new = march_forward(x_agent, y_agent, self_action)
-    if valid_action(x_new, y_new, field):
+    if is_valid_action(x_new, y_new, field):
+        sorted_dangerous_bombs = filter_and_sort_bombs(
+            x_new, y_new, bombs, field)
         if is_in_danger(x_new, y_new, explosion_map, sorted_dangerous_bombs):
             return False
         else:
@@ -182,33 +184,39 @@ def has_escaped_danger(x_agent, y_agent, self_action, field, sorted_dangerous_bo
         return False
 
 
-def valid_action(x_new, y_new, field):
+def is_valid_action(x_new, y_new, field) -> bool:
+    """
+    Check whenter the action is possible or not.
+    Expects walls (-1) around game field!!
+    """
     return field[x_new, y_new] == 0
 
 
-def is_in_danger_or_invalid_action(x_agent, y_agent, field, explosion_map, sorted_dangerous_bombs):
-    return (is_in_danger((x_agent, y_agent, field, explosion_map, sorted_dangerous_bombs))
-            or not valid_action(x_agent, y_agent, field))
+def is_save_step(x_agent, y_agent, field, explosion_map, bombs):
+    sorted_dangerous_bombs = filter_and_sort_bombs(
+        x_agent, y_agent, bombs, field)
+    return (is_valid_action(x_agent, y_agent, field) and
+            not is_in_danger(x_agent, y_agent, explosion_map, sorted_dangerous_bombs))
 
 
-def distance_increased(x_bomb, y_bomb, x_agent, y_agent, x_new, y_new):
-    return ((abs(x_bomb - x_new) > abs(x_bomb - x_agent)) or
-            ((y_bomb - y_new) > abs(y_bomb - y_agent)))
+# def distance_increased(x_bomb, y_bomb, x_agent, y_agent, x_new, y_new):
+#     return ((abs(x_bomb - x_new) > abs(x_bomb - x_agent)) or
+#             ((y_bomb - y_new) > abs(y_bomb - y_agent)))
 
 
-def got_in_loop(self, x_agent, y_agent):
-    self.loop_count = self.agent_coord_history.count((x_agent, y_agent))
-    return self.loop_count > 2
+def got_in_loop(x_agent, y_agent, agent_coord_history):
+    loop_count = agent_coord_history.count((x_agent, y_agent))
+    return loop_count > 2
 
 
-def waited_necessarily(x_agent, y_agent, field, explosion_map, sorted_dangerous_bombs):
+def waited_necessarily(x_agent, y_agent, field, explosion_map, bombs):
     """
     Check if there is an explosion or danger around agent
     """
-    return (is_in_danger_or_invalid_action(x_agent+1, y_agent, field, explosion_map, sorted_dangerous_bombs) and
-            is_in_danger_or_invalid_action(x_agent-1, y_agent, field, explosion_map, sorted_dangerous_bombs) and
-            is_in_danger_or_invalid_action(x_agent, y_agent+1, field, explosion_map, sorted_dangerous_bombs) and
-            is_in_danger_or_invalid_action(x_agent, y_agent-1, field, explosion_map, sorted_dangerous_bombs))
+    return (not is_save_step(x_agent+1, y_agent, field, explosion_map, bombs) and
+            not is_save_step(x_agent-1, y_agent, field, explosion_map, bombs) and
+            not is_save_step(x_agent, y_agent+1, field, explosion_map, bombs) and
+            not is_save_step(x_agent, y_agent-1, field, explosion_map, bombs))
 
 
 def decreased_distance(x_old, y_old, x_new, y_new, x_obj, y_obj):
@@ -317,7 +325,7 @@ def simulate_bomb(x_agent, y_agent, field, sorted_living_opponents):
     return can_reach_safety, is_effective
 
 
-def add_own_events(self, old_game_state, self_action, events_src, end_of_round) -> list:
+def add_own_events(self, old_game_state, self_action, events_src, end_of_round, agent_coord_history) -> list:
 
     # events = copy.deepcopy(events_src)
     events = events_src.copy()
@@ -342,7 +350,7 @@ def add_own_events(self, old_game_state, self_action, events_src, end_of_round) 
     if is_in_danger(x_agent, y_agent, explosion_map, sorted_dangerous_bombs):
         if not_escaping_danger(self_action):
             events.append(NOT_ESCAPING)
-        elif has_escaped_danger(x_agent, y_agent, self_action, field, sorted_dangerous_bombs, explosion_map):
+        elif has_escaped_danger(x_agent, y_agent, self_action, field, bombs, explosion_map):
             events.append(OUT_OF_DANGER)
         elif is_escaping_danger(x_agent, y_agent, self_action, field, sorted_dangerous_bombs):
             events.append(ESCAPING)
@@ -350,12 +358,12 @@ def add_own_events(self, old_game_state, self_action, events_src, end_of_round) 
             events.append(NOT_ESCAPING)
 
     else:  # Only punish loops if not in danger
-        if got_in_loop(self, x_agent, y_agent):
+        if got_in_loop(x_agent, y_agent, agent_coord_history):
             events.append(GOT_IN_LOOP)
 
     if self_action == 'WAIT':
         # Reward the agent if waiting is necessary.
-        if waited_necessarily(x_agent, y_agent, field, explosion_map, sorted_dangerous_bombs):
+        if waited_necessarily(x_agent, y_agent, field, explosion_map, bombs):
             events.append(WAITED_NECESSARILY)
         else:
             events.append(WAITED_UNNECESSARILY)

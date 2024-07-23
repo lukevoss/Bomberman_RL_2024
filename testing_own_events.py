@@ -1,3 +1,12 @@
+"""
+Keep in mind that game state is turned making it quite complicated
+Movement from game_state to GUI
+Down -> Right
+Up -> Left
+Left -> Up
+Right -> Down
+"""
+
 import unittest
 import numpy as np
 
@@ -19,6 +28,21 @@ class TestOwnEvents(unittest.TestCase):
             [0, 0, 0, 0, 0],
             [0, 0, 0, 0, 0]
         ])
+        self.game_field = np.array([
+            [-1, -1, -1, -1, -1, -1, -1],
+            [-1,  0,  0,  0,  0,  0, -1],
+            [-1,  0, -1,  0,  0,  0, -1],
+            [-1,  0,  0,  0, -1,  0, -1],
+            [-1,  0,  0,  0,  0,  0, -1],
+            [-1,  0,  0,  0,  0,  1, -1],
+            [-1, -1, -1, -1, -1, -1, -1],
+        ])
+        self.opponents = [
+            ('opponent1', 4, 0, (5, 5)),
+            ('opponent2', 3, 1, (1, 1)),
+            ('opponent3', 0, 0, (3, 3))
+        ]
+        self.explosion_map = np.zeros((7, 7))
 
     def test_march_forward(self):
         self.assertEqual(march_forward(0, 0, 'LEFT'), (-1, 0))
@@ -101,14 +125,10 @@ class TestOwnEvents(unittest.TestCase):
         self.assertEqual(sort_objects_by_distance(0, 0, [(2, 2)]), [(2, 2)])
 
     def test_sort_opponents_by_distance(self):
-        opponents = [
-            ('opponent1', 4, 0, (5, 5)),
-            ('opponent2', 3, 1, (1, 1)),
-            ('opponent3', 0, 0, (3, 3))
-        ]
+
         x_agent, y_agent = 0, 0
         sorted_opponents = sort_opponents_by_distance(
-            x_agent, y_agent, opponents)
+            x_agent, y_agent, self.opponents)
         expected_order = [('opponent2', 3, 1, (1, 1)),
                           ('opponent3', 0, 0, (3, 3)),
                           ('opponent1', 4, 0, (5, 5))]
@@ -122,13 +142,133 @@ class TestOwnEvents(unittest.TestCase):
 
     def test_filter_and_sort_bombs(self):
         bombs = [(0, 1), (1, 1), (2, 2), (0, 3), (0, 0)]
-        sorted_dangerous_bombs = filter_and_sort_bombs(0, 0, bombs)
+        sorted_dangerous_bombs = filter_and_sort_bombs(0, 0, bombs, self.field)
         expected_bombs = [(0, 0), (0, 1), (0, 3)]
         self.assertEqual(sorted_dangerous_bombs, expected_bombs)
 
-        self.assertEqual(filter_and_sort_bombs(0, 0, []), None)
+        self.assertEqual(filter_and_sort_bombs(0, 0, [], self.field), None)
         self.assertEqual(filter_and_sort_bombs(
-            3, 3, [((0, 0)), ((1, 1)), ((2, 2))]), None)
+            3, 3, [((0, 0)), ((1, 1)), ((2, 2))], self.field), None)
+
+    def test_is_in_danger(self):
+        # Setup for the test
+        # 1 represents danger at (1, 1)
+        explosion_map = np.array([[0, 0], [0, 1]])
+        dangerous_bombs = [(0, 1), (1, 0)]
+
+        # Test when agent is on a dangerous position
+        self.assertTrue(is_in_danger(1, 1, explosion_map, []))
+
+        # Test when there are dangerous bombs listed
+        self.assertTrue(is_in_danger(0, 0, explosion_map, dangerous_bombs))
+
+        # Test when agent is not on a dangerous position and no bombs are listed
+        self.assertFalse(is_in_danger(0, 0, explosion_map, []))
+
+        # Edge case: testing boundary of the explosion_map
+        self.assertFalse(is_in_danger(1, 0, explosion_map, []))
+
+    def test_has_highest_score(self):
+        self.assertTrue(has_highest_score(self.opponents, 5))
+        self.assertFalse(has_highest_score(self.opponents, 2))
+        self.assertTrue(has_highest_score([], 2))
+
+    def test_has_won_the_game(self):
+        # Win at the end of the round
+        single_opponent = [('opponent2', 3, 1, (1, 1))]
+        self.assertTrue(has_won_the_game(
+            self.opponents, 5, [], MAX_STEPS))
+        # Player got killed
+        self.assertFalse(has_won_the_game(
+            self.opponents, 5, ['GOT_KILLED'], 50))
+        # Player killed themselves with more than one opponent alive
+        self.assertFalse(has_won_the_game(
+            self.opponents, 5, ['KILLED_SELF'], 50))
+        # Player killed themselves with no opponents left
+        self.assertTrue(has_won_the_game(
+            single_opponent, 5, ['KILLED_SELF'], 50))
+        # Check for invalid game state exception
+        with self.assertRaises(ValueError):
+            has_won_the_game(single_opponent, 2, [], 50)
+
+    def test_not_escaping_danger(self):
+        self.assertTrue(not_escaping_danger('WAIT'))
+        self.assertTrue(not_escaping_danger('BOMB'))
+        self.assertFalse(not_escaping_danger('LEFT'))
+
+    def test_is_escaping_danger(self):
+        sorted_dangerous_bombs = [(1, 3)]
+        # Out of bomb reach
+        self.assertTrue(is_escaping_danger(
+            1, 1, 'RIGHT', self.game_field, sorted_dangerous_bombs))
+        # Closer to Bomb
+        self.assertFalse(is_escaping_danger(
+            1, 1, 'DOWN', self.game_field, sorted_dangerous_bombs))
+        # Further from bomb reach
+        self.assertTrue(is_escaping_danger(
+            1, 2, 'UP', self.game_field, sorted_dangerous_bombs))
+        # Invalid action
+        self.assertFalse(is_escaping_danger(
+            1, 1, 'LEFT', self.game_field, sorted_dangerous_bombs))
+
+    def test_has_escaped_danger(self):
+        sorted_dangerous_bombs = [(1, 3)]
+
+        # Escaped behind wall
+        self.assertTrue(has_escaped_danger(1, 1, 'RIGHT', self.game_field,
+                        sorted_dangerous_bombs, self.explosion_map))
+        # Invalid action
+        self.assertFalse(has_escaped_danger(1, 1, 'LEFT', self.game_field,
+                                            sorted_dangerous_bombs, self.explosion_map))
+        # Not Escaped
+        self.assertFalse(has_escaped_danger(
+            1, 1, 'WAIT', self.game_field, sorted_dangerous_bombs, self.explosion_map))
+
+        # Run into another danger
+        self.explosion_map[2][1] = 1
+        self.assertFalse(has_escaped_danger(
+            1, 1, 'RIGHT', self.game_field, sorted_dangerous_bombs, self.explosion_map))
+        self.explosion_map[2][1] = 0
+        # Ran out of Reach
+        self.assertTrue(has_escaped_danger(
+            1, 2, 'UP', self.game_field, [(1, 5)], self.explosion_map))
+
+    def test_is_valid_action(self):
+        self.assertTrue(is_valid_action(1, 1, self.game_field))
+        self.assertFalse(is_valid_action(0, 0, self.game_field))
+        self.assertFalse(is_valid_action(5, 5, self.game_field))
+
+    def test_is_save_step(self):
+        sorted_dangerous_bombs = [(1, 3)]
+        self.explosion_map[2][1] = 1
+
+        # In reach of Bomb
+        self.assertFalse(is_save_step(
+            1, 1, self.game_field, self.explosion_map, sorted_dangerous_bombs))
+
+        # On Explosion
+        self.assertFalse(is_save_step(
+            2, 1, self.game_field, self.explosion_map, sorted_dangerous_bombs))
+
+        # Save Step
+        self.assertTrue(is_save_step(
+            5, 1, self.game_field, self.explosion_map, sorted_dangerous_bombs))
+
+        # Invalid step
+        self.assertFalse(is_save_step(
+            0, 0, self.game_field, self.explosion_map, sorted_dangerous_bombs))
+
+    def test_increased_distance(self):
+        self.assertFalse(increased_distance(0, 1, 0, 0, 0, 0))
+        self.assertTrue(increased_distance(0, 1, 0, 2, 0, 0))
+        self.assertTrue(increased_distance(0, 1, 1, 1, 0, 0))
+
+    def test_got_in_loop(self):
+        agent_coord_history = deque(
+            [(0, 0), (0, 1), (0, 0), (0, 1), (0, 0), (1, 0)], 6)
+        self.assertTrue(got_in_loop(0, 0, agent_coord_history))
+        self.assertFalse(got_in_loop(0, 1, agent_coord_history))
+        self.assertFalse(got_in_loop(1, 0, agent_coord_history))
 
 
 if __name__ == '__main__':

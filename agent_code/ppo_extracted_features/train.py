@@ -97,7 +97,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         map(repr, events))} in step {new_game_state["step"]}')
 
     # Hand out self shaped events
-    events = get_events(self, old_game_state, self_action, events)
+    events = add_own_events(self, old_game_state, self_action, events, end_of_round=False, self.agent_coord_history)
 
     normalized_action = self.reverse_action_map(self_action)
     idx_normalized_action = torch.tensor(
@@ -156,7 +156,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     """
 
     # Hand out self shaped events
-    events = get_events(self, last_game_state, last_action, events)
+    events = add_own_events(self, last_game_state, last_action, events, end_of_round=True, self.agent_coord_history)
 
     self.logger.debug(f'Encountered event(s) {
                       ", ".join(map(repr, events))} in final step')
