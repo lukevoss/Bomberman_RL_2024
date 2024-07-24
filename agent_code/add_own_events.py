@@ -1,35 +1,10 @@
-from typing import List, Tuple, Any, Dict
+from typing import List, Tuple
 from collections import deque
 
 import events as e
-from settings import MAX_STEPS, BOMB_POWER, BOMB_TIMER
+import own_events as own_e
+from settings import MAX_STEPS, BOMB_POWER
 
-
-# Dense Rewards
-CONSTANT_PENALTY = "CONSTANT_PENALTY"
-WON_GAME = "WON_GAME"
-BOMBED_1_TO_2_CRATES = "BOMBED_1_TO_2_CRATES"
-BOMBED_3_TO_5_CRATES = "BOMBED_3_TO_5_CRATES"
-BOMBED_5_PLUS_CRATES = "BOMBED_5_PLUS_CRATES"
-GOT_IN_LOOP = "GOT_IN_LOOP"
-ESCAPING = "ESCAPING"
-OUT_OF_DANGER = "OUT_OF_DANGER"
-NOT_ESCAPING = "NOT_ESCAPING"
-CLOSER_TO_COIN = "CLOSER_TO_COIN"
-AWAY_FROM_COIN = "AWAY_FROM_COIN"
-CLOSER_TO_CRATE = "CLOSER_TO_CRATE"
-AWAY_FROM_CRATE = "AWAY_FROM_CRATE"
-SURVIVED_STEP = "SURVIVED_STEP"
-DESTROY_TARGET = "DESTROY_TARGET"
-MISSED_TARGET = "MISSED_TARGET"
-WAITED_NECESSARILY = "WAITED_NECESSARILY"
-WAITED_UNNECESSARILY = "WAITED_UNNECESSARILY"
-CLOSER_TO_PLAYERS = "CLOSER_TO_PLAYERS"
-AWAY_FROM_PLAYERS = "AWAY_FROM_PLAYERS"
-SMART_BOMB_DROPPED = "SMART_BOMB_DROPPED"
-DUMB_BOMB_DROPPED = "DUMB_BOMB_DROPPED"
-
-############# event shaping #####################
 
 DIRECTIONS = [(0, 1), (0, -1), (1, 0), (-1, 0)]
 UNSAFE_FIELD = 2
@@ -57,7 +32,7 @@ def is_clear_path(x_agent: int, y_agent: int, bomb: Tuple[int, int], field) -> b
     Determines if there is a clear path (no obstacles) between an agent's position and a bomb's position
     on a given field. The field is represented as a 2D list where -1 indicates an obstacle.
     """
-    def clear_path(start: int, end: int, fixed: int, is_row_fixed: bool) -> bool:
+    def _is_clear_path(start: int, end: int, fixed: int, is_row_fixed: bool) -> bool:
         """ Helper function to check for obstacles in a row or column. """
         step = 1 if start < end else -1
         for i in range(start + step, end, step):
@@ -66,9 +41,9 @@ def is_clear_path(x_agent: int, y_agent: int, bomb: Tuple[int, int], field) -> b
         return True
 
     if x_agent == bomb[0]:  # Same column
-        return clear_path(y_agent, bomb[1], x_agent, True)
+        return _is_clear_path(y_agent, bomb[1], x_agent, True)
     elif y_agent == bomb[1]:  # Same row
-        return clear_path(x_agent, bomb[0], y_agent, False)
+        return _is_clear_path(x_agent, bomb[0], y_agent, False)
 
 
 def is_dangerous_bomb(x_agent: int, y_agent: int, bomb: Tuple[int, int], field) -> bool:
@@ -121,41 +96,31 @@ def is_in_danger(x_agent: int, y_agent: int, explosion_map, sorted_dangerous_bom
     """
     Function checks if given agent position is dangerous
     """
-    if is_in_explosion(x_agent, y_agent, explosion_map):
-        return True
-    if sorted_dangerous_bombs:
-        return True
-
-    return False
+    return is_in_explosion(x_agent, y_agent, explosion_map) or sorted_dangerous_bombs
 
 
 def has_highest_score(living_opponents, score_self: int) -> bool:
     if living_opponents:
         score_opponents = [opponent[1] for opponent in living_opponents]
-        if all(score_self > score for score in score_opponents):
-            return True
-        else:
-            return False
+        return all(score_self > score for score in score_opponents)
     else:
         # TODO: How to see scores of killed opponents
         return True
 
 
 def has_won_the_game(living_opponents, score_self: int, events: List[str], steps_of_round: int) -> bool:
+    """
+    Determine if the player has won the game based on the current game state.
     # TODO: Can killed agent still win?
     # TODO: How can we access killed opponents for score
-
+    """
     if steps_of_round == MAX_STEPS:
         return has_highest_score(living_opponents, score_self)
     elif e.GOT_KILLED in events:
         return False
     elif e.KILLED_SELF in events:
-        if len(living_opponents) > 1:
-            return False
-        else:
-            return has_highest_score(living_opponents, score_self)
-    else:
-        raise ValueError("Invalid game state or undefined events")
+        return len(living_opponents) == 1 and has_highest_score(living_opponents, score_self)
+    raise ValueError("Invalid game state or undefined events")
 
 
 def not_escaping_danger(self_action):
@@ -167,10 +132,7 @@ def is_escaping_danger(x_agent, y_agent, self_action, field, sorted_dangerous_bo
     if is_valid_action(x_new, y_new, field):
         if sorted_dangerous_bombs:
             closest_bomb = sorted_dangerous_bombs[0]
-            if increased_distance(x_agent, y_agent, x_new, y_new, closest_bomb[0], closest_bomb[1]):
-                return True
-            else:
-                return False
+            return increased_distance(x_agent, y_agent, x_new, y_new, closest_bomb[0], closest_bomb[1])
     else:
         return False
 
@@ -180,10 +142,7 @@ def has_escaped_danger(x_agent, y_agent, self_action, field, bombs, explosion_ma
     if is_valid_action(x_new, y_new, field):
         sorted_dangerous_bombs = filter_and_sort_bombs(
             x_new, y_new, bombs, field)
-        if is_in_danger(x_new, y_new, explosion_map, sorted_dangerous_bombs):
-            return False
-        else:
-            return True
+        return not is_in_danger(x_new, y_new, explosion_map, sorted_dangerous_bombs)
     else:
         return False
 
@@ -230,7 +189,7 @@ def increased_distance(x_old, y_old, x_new, y_new, x_obj, y_obj):
 
 def find_closest_crate(x_agent, y_agent, field):
     """ 
-    Breadth First Search for efficiant search of closest create 
+    Breadth First Search for efficiant search of closest crate 
     """
     rows, cols = len(field), len(field[0])
     queue = deque([(x_agent, y_agent)])
@@ -245,10 +204,10 @@ def find_closest_crate(x_agent, y_agent, field):
 
         # Explore the four possible directions
         for dx, dy in DIRECTIONS:
-            nx, ny = x + dx, y + dy
-            if 0 <= nx < rows and 0 <= ny < cols and (nx, ny) not in visited:
-                visited.add((nx, ny))
-                queue.append((nx, ny))
+            next_x, next_y = x + dx, y + dy
+            if 0 <= next_x < rows and 0 <= next_y < cols and (next_x, next_y) not in visited:
+                visited.add((next_x, next_y))
+                queue.append((next_x, next_y))
 
     return None  # In case there's no "1" in the matrix
 
@@ -269,11 +228,11 @@ def simulate_bomb_explosion(x_bomb, y_bomb, field):
 
     for dx, dy in DIRECTIONS:
         for dist in range(1, BOMB_POWER + 1):
-            nx, ny = x_bomb + dx * dist, y_bomb + dy * dist
-            if is_in_game_grid(nx, ny, max_row, max_col) and bomb_simulated_field[nx][ny] != -1:
-                if bomb_simulated_field[nx][ny] == 1:
+            next_x, next_y = x_bomb + dx * dist, y_bomb + dy * dist
+            if is_in_game_grid(next_x, next_y, max_row, max_col) and bomb_simulated_field[next_x][next_y] != -1:
+                if bomb_simulated_field[next_x][next_y] == 1:
                     number_of_destroying_crates += 1
-                bomb_simulated_field[nx][ny] = UNSAFE_FIELD  # Mark as unsafe
+                bomb_simulated_field[next_x][next_y] = UNSAFE_FIELD
             else:
                 break
     bomb_simulated_field[x_bomb][y_bomb] = UNSAFE_FIELD
@@ -325,7 +284,7 @@ def add_own_events(self, old_game_state, self_action, events_src, end_of_round, 
 
     # events = copy.deepcopy(events_src)
     events = events_src.copy()
-    events.append(CONSTANT_PENALTY)
+    events.append(own_e.CONSTANT_PENALTY)
 
     field = old_game_state['field']
     x_agent, y_agent = old_game_state['self'][3]
@@ -341,38 +300,38 @@ def add_own_events(self, old_game_state, self_action, events_src, end_of_round, 
 
     if end_of_round:
         if has_won_the_game(living_opponents, score_self, events, steps_of_round):
-            events.append(WON_GAME)
+            events.append(own_e.WON_GAME)
     else:
-        events.append(SURVIVED_STEP)
+        events.append(own_e.SURVIVED_STEP)
 
     if is_in_danger(x_agent, y_agent, explosion_map, sorted_dangerous_bombs):
         if not_escaping_danger(self_action):
-            events.append(NOT_ESCAPING)
+            events.append(own_e.NOT_ESCAPING)
         elif has_escaped_danger(x_agent, y_agent, self_action, field, bombs, explosion_map):
-            events.append(OUT_OF_DANGER)
+            events.append(own_e.OUT_OF_DANGER)
         elif is_escaping_danger(x_agent, y_agent, self_action, field, sorted_dangerous_bombs):
-            events.append(ESCAPING)
+            events.append(own_e.ESCAPING)
         else:
-            events.append(NOT_ESCAPING)
+            events.append(own_e.NOT_ESCAPING)
 
     else:  # Only punish loops if not in danger
         if got_in_loop(x_agent, y_agent, agent_coord_history):
-            events.append(GOT_IN_LOOP)
+            events.append(own_e.GOT_IN_LOOP)
 
     if self_action == 'WAIT':
         # Reward the agent if waiting is necessary.
         if waited_necessarily(x_agent, y_agent, field, explosion_map, bombs):
-            events.append(WAITED_NECESSARILY)
+            events.append(own_e.WAITED_NECESSARILY)
         else:
-            events.append(WAITED_UNNECESSARILY)
+            events.append(own_e.WAITED_UNNECESSARILY)
 
     elif self_action == 'BOMB':
         can_reach_safety, is_effective = simulate_bomb(
             x_agent, y_agent, field, sorted_living_opponents)
         if not can_reach_safety:
-            events.append(DUMB_BOMB_DROPPED)
+            events.append(own_e.DUMB_BOMB_DROPPED)
         elif is_effective:
-            events.append(SMART_BOMB_DROPPED)
+            events.append(own_e.SMART_BOMB_DROPPED)
 
     else:
         x_new, y_new = march_forward(x_agent, y_agent, self_action)
@@ -382,9 +341,9 @@ def add_own_events(self, old_game_state, self_action, events_src, end_of_round, 
             x_opponent, y_opponent = closest_opponent[3]
 
             if decreased_distance(x_agent, y_agent, x_new, y_new, x_opponent, y_opponent):
-                events.append(CLOSER_TO_PLAYERS)
+                events.append(own_e.CLOSER_TO_PLAYERS)
             elif increased_distance(x_agent, y_agent, x_new, y_new, x_opponent, y_opponent):
-                events.append(AWAY_FROM_PLAYERS)
+                events.append(own_e.AWAY_FROM_PLAYERS)
 
         sorted_coins = sort_objects_by_distance(x_agent, y_agent, coins)
         if sorted_coins:
@@ -392,92 +351,30 @@ def add_own_events(self, old_game_state, self_action, events_src, end_of_round, 
             x_coin, y_coin = closest_coin
 
             if decreased_distance(x_agent, y_agent, x_new, y_new, x_coin, y_coin):
-                events.append(CLOSER_TO_COIN)
+                events.append(own_e.CLOSER_TO_COIN)
             elif increased_distance(x_agent, y_agent, x_new, y_new, x_coin, y_coin):
-                events.append(AWAY_FROM_COIN)
+                events.append(own_e.AWAY_FROM_COIN)
 
         closest_crate = find_closest_crate(x_agent, y_agent, field)
         if closest_crate:
             x_crate, y_crate = closest_crate
             if decreased_distance(x_agent, y_agent, x_new, y_new, x_crate, y_crate):
-                events.append(CLOSER_TO_CRATE)
+                events.append(own_e.CLOSER_TO_CRATE)
             elif increased_distance(x_agent, y_agent, x_new, y_new, x_crate, y_crate):
-                events.append(AWAY_FROM_CRATE)
+                events.append(own_e.AWAY_FROM_CRATE)
 
     if has_destroyed_target(events):
-        events.append(DESTROY_TARGET)
+        events.append(own_e.DESTROY_TARGET)
     else:
-        events.append(MISSED_TARGET)
+        events.append(own_e.MISSED_TARGET)
 
     if e.CRATE_DESTROYED in events:
         number_of_crates_destroyed = events.count(e.CRATE_DESTROYED)
         if number_of_crates_destroyed > 2:
-            events.append(BOMBED_3_TO_5_CRATES)
+            events.append(own_e.BOMBED_3_TO_5_CRATES)
         elif number_of_crates_destroyed > 5:
-            events.append(BOMBED_5_PLUS_CRATES)
+            events.append(own_e.BOMBED_5_PLUS_CRATES)
         else:
-            events.append(BOMBED_1_TO_2_CRATES)
+            events.append(own_e.BOMBED_1_TO_2_CRATES)
 
     return events
-
-
-def reward_from_events(self, events: List[str]) -> int:
-    """
-    Calculate the Rewards sum from all current events in the game
-
-        Parameter:
-            events (list[str]) = List of occured events
-
-        Return:
-            reward_sum [float] = Sum of all reward for occured events
-
-    Author: Luke Voss
-    """
-    # Base rewards:
-
-    aggressive_action = 0.3
-    coin_action = 0.2
-    escape = 0.6
-    waiting = 0.5
-
-    game_rewards = {
-        # SPECIAL EVENTS
-        ESCAPING: escape,
-        NOT_ESCAPING: -escape,
-        WAITED_NECESSARILY: waiting,
-        WAITED_UNNECESSARILY: -waiting,
-        CLOSER_TO_PLAYERS: aggressive_action,
-        AWAY_FROM_PLAYERS: -aggressive_action,
-        CLOSER_TO_COIN: coin_action,
-        AWAY_FROM_COIN: -coin_action,
-        CONSTANT_PENALTY: -0.001,
-        WON_GAME: 10,
-        GOT_IN_LOOP: -0.025 * self.loop_count,
-
-        # DEFAULT EVENTS
-        e.INVALID_ACTION: -1,
-
-        # bombing
-        e.BOMB_DROPPED: 0,
-        e.BOMB_EXPLODED: 0,
-
-        # crates, coins
-        e.CRATE_DESTROYED: 0.4,
-        e.COIN_FOUND: 0,
-        e.COIN_COLLECTED: 2,
-
-        # kills
-        e.KILLED_OPPONENT: 5,
-        # TODO: make killed self positiv since its better to kill himself, than to get killed
-        e.KILLED_SELF: -10,
-        e.GOT_KILLED: -10,
-        e.OPPONENT_ELIMINATED: 0,
-    }
-
-    reward_sum = 0
-    for event in events:
-        if event in game_rewards:
-            reward_sum += game_rewards[event]
-        self.logger.info(f"Awarded {reward_sum} for events {
-                         ', '.join(events)}")
-        return reward_sum

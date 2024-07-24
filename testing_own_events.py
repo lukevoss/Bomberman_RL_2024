@@ -11,7 +11,7 @@ import unittest
 import numpy as np
 from numpy.testing import assert_array_equal
 
-from agent_code.own_events import *
+from agent_code.add_own_events import *
 
 
 class TestOwnEvents(unittest.TestCase):
