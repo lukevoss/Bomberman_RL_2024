@@ -149,7 +149,7 @@ def has_escaped_danger(x_agent, y_agent, self_action, field, bombs, explosion_ma
 
 def is_valid_action(x_new, y_new, field) -> bool:
     """
-    Check whenter the action is possible or not.
+    Check whether the action is possible or not.
     Expects walls (-1) around game field!!
     """
     return field[x_new, y_new] == 0

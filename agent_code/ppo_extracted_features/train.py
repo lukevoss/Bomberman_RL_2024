@@ -43,6 +43,7 @@ import torch
 from typing import List
 
 import events as e
+import own_events as own_e
 from .callbacks import state_to_features, ACTIONS
 
 
@@ -234,31 +235,25 @@ def reward_from_events(self, events: List[str]) -> int:
 
     game_rewards = {
         # SPECIAL EVENTS
-        ESCAPE: escape,
-        NOT_ESCAPE: -escape,
-        WAITED_NECESSARILY: waiting,
-        WAITED_UNNECESSARILY: -waiting,
-        CLOSER_TO_PLAYERS: aggressive_action,
-        AWAY_FROM_PLAYERS: -aggressive_action,
-        CLOSER_TO_COIN: coin_action,
-        AWAY_FROM_COIN: -coin_action,
-        CONSTANT_PENALTY: -0.001,
-        WON_GAME: 10,
-        GET_IN_LOOP: -0.025 * self.loop_count,
+        own_e.ESCAPE: escape,
+        own_e.NOT_ESCAPE: -escape,
+        own_e.WAITED_NECESSARILY: waiting,
+        own_e.WAITED_UNNECESSARILY: -waiting,
+        own_e.CLOSER_TO_PLAYERS: aggressive_action,
+        own_e.AWAY_FROM_PLAYERS: -aggressive_action,
+        own_e.CLOSER_TO_COIN: coin_action,
+        own_e.AWAY_FROM_COIN: -coin_action,
+        own_e.CONSTANT_PENALTY: -0.001,
+        own_e.WON_GAME: 10,
+        own_e.GET_IN_LOOP: -0.025 * self.loop_count,
 
         # DEFAULT EVENTS
         e.INVALID_ACTION: -1,
-
-        # bombing
         e.BOMB_DROPPED: 0,
         e.BOMB_EXPLODED: 0,
-
-        # crates, coins
         e.CRATE_DESTROYED: 0.4,
         e.COIN_FOUND: 0,
         e.COIN_COLLECTED: 2,
-
-        # kills
         e.KILLED_OPPONENT: 5,
         e.KILLED_SELF: -8,
         e.GOT_KILLED: -10,
