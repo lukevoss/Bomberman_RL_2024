@@ -38,6 +38,13 @@ class TestOwnEvents(unittest.TestCase):
             [-1,  0,  0,  0,  1,  1, -1],
             [-1, -1, -1, -1, -1, -1, -1],
         ])
+        self.small_game_field = np.array([
+            [-1, -1, -1, -1, -1],
+            [-1,  1,  0,  0, -1],
+            [-1,  0, -1,  0, -1],
+            [-1,  0,  1,  0, -1],
+            [-1, -1, -1, -1, -1]
+        ])
         self.opponents = [
             ('opponent1', 4, 0, (5, 5)),
             ('opponent2', 3, 1, (1, 1)),
@@ -370,7 +377,85 @@ class TestOwnEvents(unittest.TestCase):
         self.assertEqual(test_n_crates, 0)
 
     def test_path_to_safety_exists(self):
-        pass
+        bomb_simulated_field = np.array([
+            [-1, -1, -1, -1, -1],
+            [-1,  1,  0,  2, -1],
+            [-1,  0, -1,  2, -1],
+            [-1,  2,  2,  2, -1],
+            [-1, -1, -1, -1, -1]
+        ])
+        self.assertTrue(path_to_safety_exists(
+            3, 3, bomb_simulated_field, self.small_game_field))
+
+        bomb_simulated_field_no_path = np.array([
+            [-1, -1, -1, -1, -1],
+            [-1,  2,  0,  0, -1],
+            [-1,  2, -1,  0, -1],
+            [-1,  2,  2,  2, -1],
+            [-1, -1, -1, -1, -1]
+        ])
+        self.assertFalse(path_to_safety_exists(
+            3, 1, bomb_simulated_field_no_path, self.small_game_field))
+
+    def test_potentially_destroying_opponent(self):
+        opponents = [('opponent1', 3, 1, (3, 1)),
+                     ('opponent2', 3, 1, (1, 2))]
+        bomb_simulated_field = np.array([
+            [-1, -1, -1, -1, -1],
+            [-1,  1,  0,  2, -1],
+            [-1,  0, -1,  2, -1],
+            [-1,  2,  2,  2, -1],
+            [-1, -1, -1, -1, -1]
+        ])
+        # Destroyes one opponent trough crate
+        self.assertTrue(potentially_destroying_opponent(
+            bomb_simulated_field, opponents))
+
+        # Destroyes no opponent
+        opponents = [('opponent1', 3, 1, (2, 1)),
+                     ('opponent2', 3, 1, (1, 2))]
+        self.assertFalse(potentially_destroying_opponent(
+            bomb_simulated_field, opponents))
+
+        # Destroyes two opponent
+        opponents = [('opponent1', 3, 1, (3, 1)),
+                     ('opponent2', 3, 1, (3, 3))]
+        self.assertTrue(potentially_destroying_opponent(
+            bomb_simulated_field, opponents))
+
+        # No opponent present
+        opponents = None
+        self.assertFalse(potentially_destroying_opponent(
+            bomb_simulated_field, opponents))
+
+    def test_simulate_bomb(self):
+        opponents = [('opponent1', 3, 1, (1, 2))]
+        # Destroyes Crate, can reach safety
+        can_reach_safety, is_effective = simulate_bomb(
+            3, 3, self.small_game_field, opponents)
+        self.assertTrue(can_reach_safety)
+        self.assertTrue(is_effective)
+
+        # Destroyes Opponent, no crate, can reach safety
+        opponents = [('opponent1', 3, 1, (2, 3))]
+        can_reach_safety, is_effective = simulate_bomb(
+            2, 3, self.small_game_field, opponents)
+        self.assertTrue(can_reach_safety)
+        self.assertTrue(is_effective)
+
+        # Destroyes nothing, can reach safety
+        opponents = []
+        can_reach_safety, is_effective = simulate_bomb(
+            2, 3, self.small_game_field, opponents)
+        self.assertTrue(can_reach_safety)
+        self.assertFalse(is_effective)
+
+        # Destroyes crate, can't reach safety
+        opponents = []
+        can_reach_safety, is_effective = simulate_bomb(
+            1, 3, self.small_game_field, opponents)
+        self.assertFalse(can_reach_safety)
+        self.assertTrue(is_effective)
 
 
 if __name__ == '__main__':

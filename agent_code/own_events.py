@@ -300,10 +300,11 @@ def path_to_safety_exists(x_agent, y_agent, bomb_simulated_field, field):
 
 
 def potentially_destroying_opponent(bomb_simulated_field, sorted_living_opponents):
-    for opponent in sorted_living_opponents:
-        x_opponent, y_opponent = opponent[3]
-        if bomb_simulated_field[x_opponent][y_opponent] == UNSAFE_FIELD:
-            return True
+    if sorted_living_opponents:
+        for opponent in sorted_living_opponents:
+            x_opponent, y_opponent = opponent[3]
+            if bomb_simulated_field[x_opponent][y_opponent] == UNSAFE_FIELD:
+                return True
     return False
 
 
@@ -311,7 +312,8 @@ def simulate_bomb(x_bomb, y_bomb, field, sorted_living_opponents):
     """ Simulate the bomb explosion and evaluate its effects. """
     simulated_field, num_destroyed_crates = simulate_bomb_explosion(
         x_bomb, y_bomb, field)
-    can_reach_safety = path_to_safety_exists(x_bomb, y_bomb, simulated_field)
+    can_reach_safety = path_to_safety_exists(
+        x_bomb, y_bomb, simulated_field, field)
     could_hit_opponent = potentially_destroying_opponent(
         simulated_field, sorted_living_opponents)
     is_effective = num_destroyed_crates > 0 or could_hit_opponent
@@ -330,6 +332,8 @@ def add_own_events(self, old_game_state, self_action, events_src, end_of_round, 
     bombs = [xy for (xy, t) in old_game_state['bombs']]
     sorted_dangerous_bombs = filter_and_sort_bombs(x_agent, y_agent, bombs)
     living_opponents = old_game_state['others']
+    sorted_living_opponents = sort_opponents_by_distance(
+        x_agent, y_agent, living_opponents)
     coins = old_game_state['coins']
     explosion_map = old_game_state['explosion_map']
     score_self = old_game_state['self'][1]
@@ -373,8 +377,6 @@ def add_own_events(self, old_game_state, self_action, events_src, end_of_round, 
     else:
         x_new, y_new = march_forward(x_agent, y_agent, self_action)
 
-        sorted_living_opponents = sort_opponents_by_distance(
-            x_agent, y_agent, living_opponents)
         if sorted_living_opponents:
             closest_opponent = sorted_living_opponents[0]
             x_opponent, y_opponent = closest_opponent[3]
