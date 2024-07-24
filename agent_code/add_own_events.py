@@ -288,6 +288,7 @@ def add_own_events(self, old_game_state, self_action, events_src, end_of_round, 
 
     field = old_game_state['field']
     x_agent, y_agent = old_game_state['self'][3]
+    is_bomb_possible = old_game_state['self'][2]
     bombs = [xy for (xy, t) in old_game_state['bombs']]
     sorted_dangerous_bombs = filter_and_sort_bombs(x_agent, y_agent, bombs)
     living_opponents = old_game_state['others']
@@ -314,10 +315,6 @@ def add_own_events(self, old_game_state, self_action, events_src, end_of_round, 
         else:
             events.append(own_e.NOT_ESCAPING)
 
-    else:  # Only punish loops if not in danger
-        if got_in_loop(x_agent, y_agent, agent_coord_history):
-            events.append(own_e.GOT_IN_LOOP)
-
     if self_action == 'WAIT':
         # Reward the agent if waiting is necessary.
         if waited_necessarily(x_agent, y_agent, field, explosion_map, bombs):
@@ -326,16 +323,21 @@ def add_own_events(self, old_game_state, self_action, events_src, end_of_round, 
             events.append(own_e.WAITED_UNNECESSARILY)
 
     elif self_action == 'BOMB':
-        can_reach_safety, is_effective = simulate_bomb(
-            x_agent, y_agent, field, sorted_living_opponents)
-        if not can_reach_safety:
+        if is_bomb_possible:
+            can_reach_safety, is_effective = simulate_bomb(
+                x_agent, y_agent, field, sorted_living_opponents)
+            if not can_reach_safety:
+                events.append(own_e.DUMB_BOMB_DROPPED)
+            elif is_effective:
+                events.append(own_e.SMART_BOMB_DROPPED)
+        else:
             events.append(own_e.DUMB_BOMB_DROPPED)
-        elif is_effective:
-            events.append(own_e.SMART_BOMB_DROPPED)
 
     else:
-        x_new, y_new = march_forward(x_agent, y_agent, self_action)
+        if got_in_loop(x_agent, y_agent, agent_coord_history):
+            events.append(own_e.GOT_IN_LOOP)
 
+        x_new, y_new = march_forward(x_agent, y_agent, self_action)
         if sorted_living_opponents:
             closest_opponent = sorted_living_opponents[0]
             x_opponent, y_opponent = closest_opponent[3]

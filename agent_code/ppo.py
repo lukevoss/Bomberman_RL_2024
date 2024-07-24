@@ -5,14 +5,32 @@ import os
 from settings import INPUT_MAP
 from agent_code.actor_critic import ActorCriticLSTM, ActorCriticMLP
 
+ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
+
+# Hyperparameter
+UPDATE_PPO_AFTER_N_STEPS = 100
+MINI_BATCH_SIZE = 25
+PPO_EPOCHS_PER_EVALUATION = 8
+
 
 class PPOAgent:
-    def __init__(self, pretrained_model=None, input_feature_size=20, hidden_size=256, network_type='LSTM'):
-        self.device = torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu")
+    def __init__(self, pretrained_model=None, input_feature_size=20, hidden_size=256, network_type='LSTM', device='cuda', train=True):
+        self.device = device
         self.model = self._initialize_model(
             pretrained_model, input_feature_size, hidden_size, network_type)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
+
+        self.states = []
+        self.actions = []
+        self.rewards = []
+        self.values = []
+        self.masks = []
+        self.log_probs = []
+        self.loss_sum = 0
+        self.n_updates = 0
+        self.round_rewards = 0
+
+        self.train = train
 
     def _initialize_model(self, pretrained_model, input_feature_size, hidden_size, network_type):
         num_outputs = len(INPUT_MAP)
@@ -148,6 +166,69 @@ class PPOAgent:
         for _ in range(batch_size // mini_batch_size):
             rand_ids = np.random.randint(0, batch_size, mini_batch_size)
             yield states[rand_ids, :], actions[rand_ids, :], log_probs[rand_ids, :], returns[rand_ids, :], advantage[rand_ids, :]
+
+    def act(self, feature_vector, train = True):
+        dist, self.value = self.agent.model(feature_vector)
+
+        if self.train:
+            # Exploration: Sample from Action Distribution
+            idx_action = dist.sample()
+            self.action_logprob = dist.log_prob(idx_action)
+        else:
+            # Exploitation: Get Action with higest probability
+            idx_action = dist.probs.argmax()  # TODO this correct?
+        return ACTIONS[idx_action]
+    
+    def training_step(self, old_feature_state, new_feature_state, action_took:str, reward:float, is_terminal:bool):
+        self.states.append(old_feature_state.to(self.device))
+        idx_action = ACTIONS.index(action_took)
+        self.actions.append(idx_action)
+        self.rewards.append(reward)
+        self.masks.append(1 - is_terminal)
+
+        self.values.append(self.value)
+        self.log_probs.append(self.action_logprob.unsqueeze(0))
+
+        n_recorded_steps = len(self.actions)
+        if (n_recorded_steps % UPDATE_PPO_AFTER_N_STEPS) == 0:
+            if is_terminal:
+                next_value = 0  # Next value doesn't exist
+            else:
+                next_value = self.model(new_feature_state)
+            returns = self.compute_gae(next_value, self.rewards,
+                                self.masks, self.values)
+
+            returns = torch.stack(returns).detach()
+            log_probs = torch.stack(self.log_probs).detach()
+            values = torch.stack(self.values).detach()
+            states = torch.stack(self.states)
+            actions = torch.stack(self.actions)
+            advantages = returns - values
+
+            # Update step of PPO algorithm
+            if states.size(0) > 0:
+                loss = self.update(self, PPO_EPOCHS_PER_EVALUATION, MINI_BATCH_SIZE,
+                                states, actions, log_probs, returns, advantages)
+                self.loss_sum += loss
+                self.n_updates += 1
+
+            if is_terminal:
+                print(' Total rewards of {}, Loss: {}'.format(
+                    self.round_rewards, self.loss_sum/self.n_updates))
+
+            self.states = []
+            self.actions = []
+            self.rewards = []
+            self.values = []
+            self.masks = []
+            self.log_probs = []
+
+        self.round_rewards = 0
+        return loss
+    
+    def save_model(self, model_name="ppo_model"):
+        model_path = os.path.join("./models", model_name + ".pt")
+        torch.save(self.model.state_dict(), model_path)
 
     
 

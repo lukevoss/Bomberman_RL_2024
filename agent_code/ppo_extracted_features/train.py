@@ -1,9 +1,9 @@
-""" 
+"""
 This File is called by the environment and manages the agents training
 Implementation of a PPO algorithm with LSTM and MLP networks as Actor Critic
 
 Deep learning approach with strong feature engineering:
-Board is abstracted as a boolean vector of size 20 with each feature as following: 
+Board is abstracted as a boolean vector of size 20 with each feature as following:
 
     Direction to closest Coin
         [0]:Up
@@ -44,21 +44,20 @@ from typing import List
 
 import events as e
 import own_events as own_e
-from .callbacks import state_to_features, ACTIONS
+from extracted_features import state_to_features
+from ppo import ACTIONS
+from add_own_events import add_own_events
 
 
 # Hyper parameters:
 SAVE_EVERY_N_EPOCHS = 100
 loop = 0
 LR = 1e-4
-NUM_STEPS = 100
-MINI_BATCH_SIZE = 25
-PPO_EPOCHS = 8
 
 
 def setup_training(self):
     """
-    Initialise self for training purpose. 
+    Initialise self for training purpose.
     This function is called after `setup` in callbacks.py.
 
         Parameter:
@@ -66,18 +65,7 @@ def setup_training(self):
 
     Author: Luke Voss
     """
-    self.states = []
-    self.actions = []
-    self.rewards = []
-    self.values = []
-    self.masks = []
-    self.log_probs = []
-    self.loss_sum = 0
-    self.n_updates = 0
-
-    self.round_rewards = 0
-
-    self.optimizer = torch.optim.Adam(self.model.parameters(), lr=LR)
+    self.train = True
 
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
@@ -94,52 +82,21 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
     Author: Luke Voss
     """
+    # Hand out self shaped events
+    events = add_own_events(self, old_game_state, self_action, events,
+                            end_of_round=False, agent_coord_history=self.agent_coord_history)
+
+    # Log Events
     self.logger.debug(f'Encountered game event(s) {", ".join(
         map(repr, events))} in step {new_game_state["step"]}')
 
-    # Hand out self shaped events
-    events = add_own_events(self, old_game_state, self_action, events, end_of_round=False, self.agent_coord_history)
-
-    normalized_action = self.reverse_action_map(self_action)
-    idx_normalized_action = torch.tensor(
-        [ACTIONS.index(normalized_action)], device=self.device)
-    done = 0
+    old_feature_state = state_to_features(old_game_state)
+    new_feature_state = state_to_features(new_game_state)
     reward = reward_from_events(self, events)
-    self.round_rewards += reward
+    is_not_terminal = True
 
-    # Save Tansistions in Lists
-    self.states.append(state_to_features(old_game_state).to(self.device))
-    self.actions.append(idx_normalized_action)
-    self.rewards.append(reward)
-    self.values.append(self.value)
-    self.masks.append(1 - done)
-    self.log_probs.append(self.action_logprob.unsqueeze(0))
-
-    if (len(self.actions) % NUM_STEPS) == 0:
-        next_state = state_to_features(new_game_state).to(self.device)
-        _, next_value = self.model(next_state)
-        returns = compute_gae(next_value, self.rewards,
-                              self.masks, self.values)
-
-        returns = torch.stack(returns).detach()
-        log_probs = torch.stack(self.log_probs).detach()
-        values = torch.stack(self.values).detach()
-        states = torch.stack(self.states)
-        actions = torch.stack(self.actions)
-        advantages = returns - values
-
-        # Update step of PPO algorithm
-        loss = ppo_update(self, PPO_EPOCHS, MINI_BATCH_SIZE,
-                          states, actions, log_probs, returns, advantages)
-        self.loss_sum += loss
-        self.n_updates += 1
-
-        self.states = []
-        self.actions = []
-        self.rewards = []
-        self.values = []
-        self.masks = []
-        self.log_probs = []
+    self.agent.training_step(old_feature_state, new_feature_state,
+                             self_action, reward, is_not_terminal)
 
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
@@ -157,62 +114,23 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     """
 
     # Hand out self shaped events
-    events = add_own_events(self, last_game_state, last_action, events, end_of_round=True, self.agent_coord_history)
+    events = add_own_events(self, last_game_state, last_action, events,
+                            end_of_round=False, agent_coord_history=self.agent_coord_history)
 
-    self.logger.debug(f'Encountered event(s) {
-                      ", ".join(map(repr, events))} in final step')
-    n_round = last_game_state['round']
+    # Log Events
+    self.logger.debug(f'Encountered event(s) 
+                      {", ".join(map(repr, events))} in final step')
 
-    normalized_action = self.reverse_action_map(last_action)
-    idx_normalized_action = torch.tensor(
-        [ACTIONS.index(normalized_action)], device=self.device)
     reward = reward_from_events(self, events)
-    self.round_rewards += reward
-    done = 1
+    old_feature_state = state_to_features(last_game_state)
+    is_not_terminal = False
 
-    # Save Tansistions in Lists
-    self.states.append(state_to_features(last_game_state).to(self.device))
-    self.actions.append(idx_normalized_action)
-    self.rewards.append(reward)
-    self.values.append(self.value)
-    self.masks.append(1-done)
-    self.log_probs.append(self.action_logprob.unsqueeze(0))
-
-    if (last_game_state['step'] % NUM_STEPS) == 0:
-        next_value = 0  # Next value doesn't exist
-        returns = compute_gae(next_value, self.rewards,
-                              self.masks, self.values)
-
-        returns = torch.stack(returns).detach()
-        log_probs = torch.stack(self.log_probs).detach()
-        values = torch.stack(self.values).detach()
-        states = torch.stack(self.states)
-        actions = torch.stack(self.actions)
-        advantages = returns - values
-
-        # Update step of PPO algorithm
-        if states.size(0) > 0:
-            loss = ppo_update(self, PPO_EPOCHS, MINI_BATCH_SIZE,
-                              states, actions, log_probs, returns, advantages)
-            self.loss_sum += loss
-            self.n_updates += 1
-
-        print(' Total rewards of {}, Loss: {}'.format(
-            self.round_rewards, self.loss_sum/self.n_updates))
-
-        self.states = []
-        self.actions = []
-        self.rewards = []
-        self.values = []
-        self.masks = []
-        self.log_probs = []
-
-    self.round_rewards = 0
+    self.agent.training_step(old_feature_state, None, last_action, reward,  is_not_terminal)
 
     # Store the model
+    n_round = last_game_state['round']
     if (n_round % SAVE_EVERY_N_EPOCHS) == 0:
-        model_path = "./models/ppo_model.pt"
-        torch.save(self.model.state_dict(), model_path)
+        self.agent.save_model()
 
 
 def reward_from_events(self, events: List[str]) -> int:
