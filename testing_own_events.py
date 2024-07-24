@@ -369,6 +369,9 @@ class TestOwnEvents(unittest.TestCase):
         assert_array_equal(test_simulated_field, bomb_simulated_field)
         self.assertEqual(test_n_crates, 0)
 
+    def test_path_to_safety_exists(self):
+        pass
+
 
 if __name__ == '__main__':
     unittest.main()
