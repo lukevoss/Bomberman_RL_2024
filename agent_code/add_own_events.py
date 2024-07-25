@@ -1,4 +1,4 @@
-# TODO only give game state?
+# TODO only give game state to utils?
 
 from utils import *
 import events as e

@@ -2,40 +2,7 @@
 This File is called by the environment and manages the agents training
 Implementation of a PPO algorithm with LSTM and MLP networks as Actor Critic
 
-Deep learning approach with strong feature engineering:
-Board is abstracted as a boolean vector of size 20 with each feature as following:
-
-    Direction to closest Coin
-        [0]:Up
-        [1]:Right
-        [2]:Down
-        [3]:Left
-        [4]:Wait
-
-    Direction to closest Crate
-        [5]:Up
-        [6]:Right
-        [7]:Down
-        [8]:Left
-        [9]:Wait
-
-    Direction in which placing a bomb would kill another player
-        [10]:Up
-        [11]:Right
-        [12]:Down
-        [13]:Left
-        [14]:Place now
-
-    If in Danger, Direction to safety:
-        [15]:Up
-        [16]:Right
-        [17]:Down
-        [18]:Left
-        [19]:Wait
-
-    [20] Could we survive a placed Bomb
-
-Author: Luke Voss
+Deep learning approach with strong feature engineering
 """
 import numpy as np
 import torch

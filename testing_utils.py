@@ -402,7 +402,6 @@ class TestingUtils(unittest.TestCase):
         self.assertEqual(test_n_crates, 0)
 
     def test_path_to_safety_exists(self):
-        # TODO Test for opponents or bombs in the way
         bombs = []
         opponents = []
         bomb_simulated_field = np.array([
