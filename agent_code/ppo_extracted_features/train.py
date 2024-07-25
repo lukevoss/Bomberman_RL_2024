@@ -13,21 +13,21 @@ Board is abstracted as a boolean vector of size 20 with each feature as followin
         [4]:Wait
 
     Direction to closest Crate
-        [5]: Up
+        [5]:Up
         [6]:Right
         [7]:Down
         [8]:Left
         [9]:Wait
 
     Direction in which placing a bomb would kill another player
-        [10]: Up
+        [10]:Up
         [11]:Right
         [12]:Down
         [13]:Left
         [14]:Place now
 
     If in Danger, Direction to safety:
-        [15]: Up
+        [15]:Up
         [16]:Right
         [17]:Down
         [18]:Left
@@ -59,13 +59,8 @@ def setup_training(self):
     """
     Initialise self for training purpose.
     This function is called after `setup` in callbacks.py.
-
-        Parameter:
-            self: This object is passed to all callbacks and you can set arbitrary values.
-
-    Author: Luke Voss
     """
-    self.train = True
+    pass
 
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):

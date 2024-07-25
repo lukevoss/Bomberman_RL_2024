@@ -20,7 +20,8 @@ def look_for_targets(free_space, start, targets, logger=None):
     Returns:
         coordinate of first step towards closest target or towards tile closest to any target.
     """
-    if len(targets) == 0: return None
+    if len(targets) == 0:
+        return None
 
     frontier = [start]
     parent_dict = {start: start}
@@ -41,18 +42,21 @@ def look_for_targets(free_space, start, targets, logger=None):
             break
         # Add unexplored free neighboring tiles to the queue in a random order
         x, y = current
-        neighbors = [(x, y) for (x, y) in [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)] if free_space[x, y]]
+        neighbors = [(x, y) for (x, y) in [(x + 1, y), (x - 1, y),
+                                           (x, y + 1), (x, y - 1)] if free_space[x, y]]
         shuffle(neighbors)
         for neighbor in neighbors:
             if neighbor not in parent_dict:
                 frontier.append(neighbor)
                 parent_dict[neighbor] = current
                 dist_so_far[neighbor] = dist_so_far[current] + 1
-    if logger: logger.debug(f'Suitable target found at {best}')
+    if logger:
+        logger.debug(f'Suitable target found at {best}')
     # Determine the first step towards the best found target tile
     current = best
     while True:
-        if parent_dict[current] == start: return current
+        if parent_dict[current] == start:
+            return current
         current = parent_dict[current]
 
 
@@ -125,13 +129,19 @@ def act(self, game_state):
                 (not d in others) and
                 (not d in bomb_xys)):
             valid_tiles.append(d)
-    if (x - 1, y) in valid_tiles: valid_actions.append('LEFT')
-    if (x + 1, y) in valid_tiles: valid_actions.append('RIGHT')
-    if (x, y - 1) in valid_tiles: valid_actions.append('UP')
-    if (x, y + 1) in valid_tiles: valid_actions.append('DOWN')
-    if (x, y) in valid_tiles: valid_actions.append('WAIT')
+    if (x - 1, y) in valid_tiles:
+        valid_actions.append('LEFT')
+    if (x + 1, y) in valid_tiles:
+        valid_actions.append('RIGHT')
+    if (x, y - 1) in valid_tiles:
+        valid_actions.append('UP')
+    if (x, y + 1) in valid_tiles:
+        valid_actions.append('DOWN')
+    if (x, y) in valid_tiles:
+        valid_actions.append('WAIT')
     # Disallow the BOMB action if agent dropped a bomb in the same spot recently
-    if (bombs_left > 0) and (x, y) not in self.bomb_history: valid_actions.append('BOMB')
+    if (bombs_left > 0) and (x, y) not in self.bomb_history:
+        valid_actions.append('BOMB')
     self.logger.debug(f'Valid actions: {valid_actions}')
 
     # Collect basic action proposals in a queue
@@ -151,7 +161,8 @@ def act(self, game_state):
         targets.extend(others)
 
     # Exclude targets that are currently occupied by a bomb
-    targets = [targets[i] for i in range(len(targets)) if targets[i] not in bomb_xys]
+    targets = [targets[i]
+               for i in range(len(targets)) if targets[i] not in bomb_xys]
 
     # Take a step towards the most immediately interesting target
     free_space = arena == 0
@@ -159,10 +170,14 @@ def act(self, game_state):
         for o in others:
             free_space[o] = False
     d = look_for_targets(free_space, (x, y), targets, self.logger)
-    if d == (x, y - 1): action_ideas.append('UP')
-    if d == (x, y + 1): action_ideas.append('DOWN')
-    if d == (x - 1, y): action_ideas.append('LEFT')
-    if d == (x + 1, y): action_ideas.append('RIGHT')
+    if d == (x, y - 1):
+        action_ideas.append('UP')
+    if d == (x, y + 1):
+        action_ideas.append('DOWN')
+    if d == (x - 1, y):
+        action_ideas.append('LEFT')
+    if d == (x + 1, y):
+        action_ideas.append('RIGHT')
     if d is None:
         self.logger.debug('All targets gone, nothing to do anymore')
         action_ideas.append('WAIT')
@@ -182,15 +197,19 @@ def act(self, game_state):
     for (xb, yb), t in bombs:
         if (xb == x) and (abs(yb - y) < 4):
             # Run away
-            if (yb > y): action_ideas.append('UP')
-            if (yb < y): action_ideas.append('DOWN')
+            if (yb > y):
+                action_ideas.append('UP')
+            if (yb < y):
+                action_ideas.append('DOWN')
             # If possible, turn a corner
             action_ideas.append('LEFT')
             action_ideas.append('RIGHT')
         if (yb == y) and (abs(xb - x) < 4):
             # Run away
-            if (xb > x): action_ideas.append('LEFT')
-            if (xb < x): action_ideas.append('RIGHT')
+            if (xb > x):
+                action_ideas.append('LEFT')
+            if (xb < x):
+                action_ideas.append('RIGHT')
             # If possible, turn a corner
             action_ideas.append('UP')
             action_ideas.append('DOWN')

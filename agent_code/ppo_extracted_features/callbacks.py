@@ -44,8 +44,6 @@ def setup(self):
 
     self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     self.current_round = 0
-    # Will get changed to true if setup_trainig is called
-    self.train = False
 
     # Agent Position history before normalization
     self.agent_coord_history = deque([], self.MAX_COORD_HISTORY)
