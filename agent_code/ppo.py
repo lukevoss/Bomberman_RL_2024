@@ -4,8 +4,8 @@ import os
 
 from settings import INPUT_MAP
 from agent_code.actor_critic import ActorCriticLSTM, ActorCriticMLP
+from agent_code.utils import ACTIONS
 
-ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 
 # Hyperparameter
 UPDATE_PPO_AFTER_N_STEPS = 100

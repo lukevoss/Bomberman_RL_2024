@@ -1,14 +1,39 @@
 from typing import List, Tuple
 from collections import deque
+from dataclasses import dataclass, field as datafield
+from typing import TypedDict
+
+import numpy as np
+
 import events as e
+import settings as s
 
-from settings import MAX_STEPS, BOMB_POWER
-
-DIRECTIONS = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+MOVING_DIRECTIONS = [(0, -1), (0, 1), (-1, 0), (1, 0)]  # UP, DOWN, LEFT, RIGHT
+DIRECTIONS_AND_WAIT = [(0, -1), (0, 1), (-1, 0), (1, 0), (0, 0)]
+ACTIONS = ['UP', 'DOWN', 'LEFT', 'RIGHT', 'WAIT', 'BOMB']
 UNSAFE_FIELD = 2
 CRATE = 1
 WALL = -1
 FREE = 0
+
+# TODO TypeDict?
+
+
+@dataclass
+class GameState:
+    field: np.ndarray
+    bombs: list[tuple[tuple[int, int], int]]
+    explosion_map: np.ndarray
+    coins: list[tuple[int, int]]
+    self: tuple[str, int, bool, tuple[int, int]]
+    others: list[tuple[str, int, bool, tuple[int, int]]]
+    step: int
+    round: int
+    user_input: str | None
+
+
+def move_in_direction(coords, direction):
+    return coords[0] + direction[0], coords[1] + direction[1]
 
 
 def march_forward(coords, direction):
@@ -112,7 +137,7 @@ def has_won_the_game(living_opponents, score_self: int, events: List[str], steps
     """
     Determine if the player has won the game based on the current game state.
     """
-    if steps_of_round == MAX_STEPS:
+    if steps_of_round == s.MAX_STEPS:
         return has_highest_score(living_opponents, score_self)
     elif e.GOT_KILLED in events:
         return False
@@ -156,6 +181,7 @@ def is_valid_action(step_coords, field, opponents, bombs) -> bool:
 
 
 def is_save_step(agent_coords, field, opponents, explosion_map, bombs):
+    # TODO pass in passed time
     sorted_dangerous_bombs = sort_and_filter_out_dangerous_bombs(
         agent_coords, bombs, field)
     return (is_valid_action(agent_coords, field, opponents, bombs) and
@@ -191,6 +217,8 @@ def increased_distance(old_coords, new_coords, object_coords):
 def find_closest_crate(agent_coords, field):
     """ 
     Breadth First Search for efficiant search of closest crate 
+
+    TODO add opponents and bombs?
     """
     rows, cols = len(field), len(field[0])
     queue = deque([agent_coords])
@@ -203,9 +231,10 @@ def find_closest_crate(agent_coords, field):
             return coords
 
         # Explore the four possible directions
-        for direction in DIRECTIONS:
+        for direction in MOVING_DIRECTIONS:
             next_coords = (coords[0] + direction[0], coords[1] + direction[1])
-            if 0 <= next_coords[0] < rows and 0 <= next_coords[1] < cols and next_coords not in visited:
+            if (0 <= next_coords[0] < rows and 0 <= next_coords[1] < cols and
+                    next_coords not in visited):
                 visited.add(next_coords)
                 queue.append(next_coords)
 
@@ -221,26 +250,29 @@ def is_in_game_grid(coords, max_row, max_col):
     return 0 <= coords[0] < max_row and 0 <= coords[1] < max_col
 
 
-def simulate_bomb_explosion(bomb, field):
-    bomb_simulated_field = field.copy()
+def get_blast_effected_coords(bomb_coords, field) -> List[tuple[int, int]]:
+    """
+    Calculate all coordinates affected by a bomb's blast.
+    """
+    # TODO necesarry?
+    if field[bomb_coords] == WALL:
+        return []
+
     max_row, max_col = len(field), len(field[0])
-    number_of_destroying_crates = 0
 
-    for direction in DIRECTIONS:
-        for dist in range(1, BOMB_POWER + 1):
-            next_coords = (bomb[0] + direction[0] * dist,
-                           bomb[1] + direction[1] * dist)
-            if is_in_game_grid(next_coords, max_row, max_col) and bomb_simulated_field[next_coords] != WALL:
-                if bomb_simulated_field[next_coords] == CRATE:
-                    number_of_destroying_crates += 1
-                bomb_simulated_field[next_coords] = UNSAFE_FIELD
-            else:
+    blast_coords = [bomb_coords]
+    for direction in MOVING_DIRECTIONS:
+        for i in range(1, s.BOMB_POWER + 1):
+            new_coords = bomb_coords[0] + direction[0] * \
+                i, bomb_coords[1] + direction[1] * i
+            if not is_in_game_grid(new_coords, max_row, max_col) or field[new_coords] == WALL:
                 break
-    bomb_simulated_field[bomb] = UNSAFE_FIELD
-    return bomb_simulated_field, number_of_destroying_crates
+            blast_coords.append(new_coords)
+
+    return blast_coords
 
 
-def path_to_safety_exists(agent_coords, bomb_simulated_field, field, living_opponents, bombs):
+def path_to_safety_exists(agent_coords, bomb_blast_coords, field, living_opponents, bombs):
     """
     Gives if there exist a path to safety based on the given agents coordinates and the simulated bombs field. 
     Bombs and opponents are considered as not vanishing and not moving.
@@ -251,14 +283,14 @@ def path_to_safety_exists(agent_coords, bomb_simulated_field, field, living_oppo
     visited = set([agent_coords])
     while queue:
         coords = queue.popleft()
-        for direction in DIRECTIONS:
+        for direction in MOVING_DIRECTIONS:
             new_coords = coords[0] + direction[0], coords[1] + direction[1]
 
             if (is_in_game_grid(new_coords, max_row, max_col) and
                 new_coords not in visited and
                 new_coords not in living_opponents and
                     new_coords not in bombs):
-                if bomb_simulated_field[new_coords] == FREE:
+                if new_coords not in bomb_blast_coords:
                     return True
                 if field[new_coords] == FREE:
                     visited.add(new_coords)
@@ -266,23 +298,32 @@ def path_to_safety_exists(agent_coords, bomb_simulated_field, field, living_oppo
     return False  # No safe path exists
 
 
-def potentially_destroying_opponent(bomb_simulated_field, sorted_living_opponents):
+def potentially_destroying_opponent(bomb_blast_coords, sorted_living_opponents):
     if sorted_living_opponents:
         for opponent in sorted_living_opponents:
             opponent_coords = opponent[3]
-            if bomb_simulated_field[opponent_coords] == UNSAFE_FIELD:
+            if opponent_coords in bomb_blast_coords:
                 return True
     return False
 
 
+def get_number_of_destroying_crates(bomb_blast_coords, field):
+    n_detroying_crates = 0
+    for blast_coord in bomb_blast_coords:
+        if field[blast_coord] == CRATE:
+            n_detroying_crates += 1
+    return n_detroying_crates
+
+
 def simulate_bomb(bomb, field, sorted_living_opponents, bombs):
     """ Simulate the bomb explosion and evaluate its effects. """
-    simulated_field, num_destroyed_crates = simulate_bomb_explosion(
-        bomb, field)
+    bomb_blast_coords = get_blast_effected_coords(bomb, field)
     can_reach_safety = path_to_safety_exists(
-        bomb, simulated_field, field, sorted_living_opponents, bombs)
+        bomb, bomb_blast_coords, field, sorted_living_opponents, bombs)
     could_hit_opponent = potentially_destroying_opponent(
-        simulated_field, sorted_living_opponents)
-    is_effective = num_destroyed_crates > 0 or could_hit_opponent
+        bomb_blast_coords, sorted_living_opponents)
+    num_destroying_crates = get_number_of_destroying_crates(
+        bomb_blast_coords, field)
+    is_effective = num_destroying_crates > 0 or could_hit_opponent
 
     return can_reach_safety, is_effective

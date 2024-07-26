@@ -1,4 +1,5 @@
 # TODO only give game state to utils?
+# TODO let agent save scores of others
 
 from utils import *
 import events as e

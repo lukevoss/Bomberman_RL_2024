@@ -5,6 +5,9 @@ Down -> Right
 Up -> Left
 Left -> Up
 Right -> Down
+
+# TODO Update simualte_bomb and simulate bomb explosion -> get blast coords
+# TODO Add is effective
 """
 
 import unittest
