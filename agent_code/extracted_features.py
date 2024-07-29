@@ -50,8 +50,6 @@ Board is abstracted as a boolean vector of size 20 with each feature as followin
 
 # TODO make crossing of bomb danger zone possible
 # TODO sometimes placing a bomb before running out of danger can trap a opponent between two bombs
-# TODO Kill self if no crates or coin left and only one other opponent (make sure opponent not in reach)
-# TODO Trap agents with bombs in dead end -> rule_based_agents run towards dead end and dont hunt for 5 turns. One Block before dead end is optimal position, since rule_based_agent hasn't dropped bomb yet
 # TODO Should we do masking?
 # TODO are any coins left in game? If not start hunting and dont destroy more crates
 
@@ -76,7 +74,7 @@ def is_coin(coords, game_state: GameState):
 
 def is_near_crate(coords, game_state: GameState) -> bool:
     """Return True if the given coordinate is near a crate."""
-    for direction in MOVING_DIRECTIONS:
+    for direction in MOVEMENT_DIRECTIONS:
         new_coords = coords[0]+direction[0], coords[1] + direction[1]
         if game_state.field[new_coords] == 1:
             return True
@@ -92,7 +90,6 @@ def is_opponent_in_blast_range(coords, game_state: GameState) -> bool:
 
 
 def is_save_step_criterion(coords, game_state: GameState):
-    # TODO pass in passed time
     sorted_dangerous_bombs = sort_and_filter_out_dangerous_bombs(
         coords, game_state)
     return (is_valid_action(coords, game_state) and
@@ -102,15 +99,16 @@ def is_save_step_criterion(coords, game_state: GameState):
 def find_shortest_path(start_coords, game_state: GameState, stop_criterion: function):
     """
     Returns the shortest path to one of the given goal coordinates, currently bombs and opponents block movements
-    TODO improve search so explosion and danger is considered
+    with next game state estimation
+    # TODO put waiting into exploring?
     """
-    queue = deque([start_coords])
+    queue = deque([start_coords, game_state])
     visited = set([start_coords])
     parent = {start_coords: None}
 
     while queue:
-        current_coords = queue.popleft()
-        if stop_criterion(current_coords, game_state):
+        current_coords, current_game_state = queue.popleft()
+        if stop_criterion(current_coords, current_game_state):
             step = current_coords
             path = []
             while step != start_coords:
@@ -118,18 +116,20 @@ def find_shortest_path(start_coords, game_state: GameState, stop_criterion: func
                 step = parent[step]
             return path[::-1]
 
-        for direction in MOVING_DIRECTIONS:
-            new_coords = move_in_direction(current_coords, direction)
-            if is_valid_action(new_coords, game_state) and new_coords not in visited:
-                queue.append(new_coords)
-                visited.add(new_coords)
-                parent[new_coords] = new_coords
+        for action in MOVEMENT_ACTIONS:
+            next_game_state = get_next_game_state(action, current_game_state)
+            if next_game_state != None:
+                new_coords = next_game_state['self'][3]
+                if new_coords not in visited:
+                    queue.append(new_coords)
+                    visited.add(new_coords)
+                    parent[new_coords] = new_coords
     return []
 
 
 def get_action_idx_from_coords(agent_coords, new_coords):
     direction = (new_coords[0]-agent_coords[0], new_coords[1]-agent_coords[1])
-    return MOVING_DIRECTIONS.index(direction)
+    return MOVEMENT_DIRECTIONS.index(direction)
 
 
 def get_action_idx_to_closest_thing(game_state: GameState, stop_criterion: function):
@@ -175,26 +175,56 @@ def get_danger_in_each_direction(coords, game_state: GameState):
 
 def is_deadend(coords, game_state: GameState):
     count_free_tiles = 0
-    for direction in MOVING_DIRECTIONS:
+    for direction in MOVEMENT_DIRECTIONS:
         new_coords = move_in_direction(coords, direction)
         if game_state.field[new_coords] == FREE:
             count_free_tiles += 1
     return count_free_tiles <= 1
 
 
+def get_possible_directions(agent_coords, game_state: GameState):
+    possible_directions = []
+    for direction in MOVEMENT_DIRECTIONS:
+        new_coords = march_forward(agent_coords, direction)
+        if is_valid_action(new_coords, game_state):
+            possible_directions.append(direction)
+    return possible_directions
+
+
+def are_opposite_directions(directions):
+    if directions == 2:
+        direction_1 = directions[0]
+        direction_2 = directions[1]
+        return (direction_1[0] + direction_2[0] == 0 and
+                direction_1[1] + direction_2[1] == 0)
+    return False
+
+
 def opponent_in_deadend(opponent, game_state):
+    """
+    Returns if opponent is in deadend (e.g only has two availabe opposite directions that 
+    he can walk and one of them leads into a deadend)
+    """
     opponent_coord = opponent[3]
-    # TODO
+    possible_directions = get_possible_directions(opponent_coord, game_state)
+    if len(possible_directions) <= 2 and are_opposite_directions(possible_directions):
+        for direction in possible_directions:
+            new_coords = opponent_coord
+            for i in range(0, s.BOMB_POWER):
+                new_coords = move_in_direction(new_coords, direction)
+                if is_deadend(new_coords, game_state):
+                    return True
+    return False
 
 
 def would_surely_kill_opponent(bomb_blast_coords, game_state: GameState):
     for opponent in game_state.others:
-        if opponent_in_deadend and potentially_destroying_opponent(bomb_blast_coords, [opponent]):
+        if opponent_in_deadend(opponent, game_state) and potentially_destroying_opponent(bomb_blast_coords, [opponent]):
             return True
     return False
 
 
-def state_to_features(game_state: dict) -> np.array:
+def state_to_features(game_state: dict, scores) -> np.array:
     feature_vector = np.zeros(FEATURE_VECTOR_SIZE)
 
     game_state = GameState(**game_state)
@@ -235,6 +265,15 @@ def state_to_features(game_state: dict) -> np.array:
         agent_coords, game_state.field)
     n_destroying_crates = get_number_of_destroying_crates(
         bomb_blast_coords, game_state.field)
-    would_kill_opponent = would_surely_kill_opponent()
+    would_kill_opponent = would_surely_kill_opponent(
+        bomb_blast_coords, game_state)
 
-    feature_vector[27] = has_dropped_very_smart_bomb()
+    feature_vector[27] = n_destroying_crates >= 4 or would_kill_opponent
+
+    # Is currently only one opponent left?
+    living_opponent = game_state.others
+    feature_vector[28] = len(living_opponent) <= 1
+
+    # Are we currently in the lead?
+    own_score = game_state.self[1]
+    feature_vector[29] = own_score > max(scores)

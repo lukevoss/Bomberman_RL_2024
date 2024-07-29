@@ -2,15 +2,25 @@ from typing import List, Tuple
 from collections import deque
 from dataclasses import dataclass, field as datafield
 from typing import TypedDict
+import copy
 
 import numpy as np
 
 import events as e
 import settings as s
 
-MOVING_DIRECTIONS = [(0, -1), (0, 1), (-1, 0), (1, 0)]  # UP, DOWN, LEFT, RIGHT
+MOVEMENT_DIRECTIONS = [(0, -1), (0, 1), (-1, 0), (1, 0)
+                       ]  # UP, DOWN, LEFT, RIGHT
 DIRECTIONS_AND_WAIT = [(0, -1), (0, 1), (-1, 0), (1, 0), (0, 0)]
+MOVEMENT_ACTIONS = ['UP', 'DOWN', 'LEFT', 'RIGHT']
 ACTIONS = ['UP', 'DOWN', 'LEFT', 'RIGHT', 'WAIT', 'BOMB']
+MOVEMENT = {
+    "UP": (0, -1),
+    "DOWN": (0, 1),
+    "LEFT": (-1, 0),
+    "RIGHT": (1, 0),
+}
+
 UNSAFE_FIELD = 2
 CRATE = 1
 WALL = -1
@@ -32,20 +42,117 @@ class GameState:
     user_input: str | None
 
 
+def get_next_game_state(action: str, game_state: GameState):
+    """
+    Advances the game state by one action performed by the player. 
+    Returns None if action is invalid or agent dies
+
+    Parameters:
+        game_state (Game): The current game state.
+        action (Action): The action to be performed by the player.
+
+    Returns:
+        Game or None: The new game state or None if the action results in an invalid state or player death.
+    """
+    next_game_state = copy.copy(game_state)
+    next_game_state['bombs'] = list(next_game_state['bombs'])
+
+    if not process_player_action(action, next_game_state):
+        return None
+
+    # Here we update explosions after the bombs are updated, becuase we want to mock the states that the agent actually see (explosion_map with entrys never above 1)
+    update_bombs(next_game_state)
+    evaluate_explosions(next_game_state)
+    update_explosions(next_game_state)
+
+    return next_game_state
+
+
+def process_player_action(action: str, game_state: GameState) -> bool:
+    """
+    Like environment.py self.poll_and_run_agents()
+    """
+    name, score, bomb, agent_coords = game_state['self']
+
+    if action in MOVEMENT:
+        direction = MOVEMENT[action]
+        new_coords = move_in_direction(agent_coords, direction)
+        if is_valid_action(new_coords, game_state):
+            game_state['self'] = (name, score, bomb, new_coords)
+        else:
+            return False
+    elif action == "WAIT":
+        pass
+    elif action == "BOMB":
+        if bomb:
+            game_state['bombs'].append((agent_coords, s.BOMB_TIMER))
+        else:
+            return False
+
+    else:
+        return False  # Invalid action
+
+    return True
+
+
+def update_explosions(game_state: GameState):
+    """
+    Like in environment.py: self.update_explosions()
+    """
+    game_state["explosion_map"] = np.clip(
+        game_state["explosion_map"] - 1, 0, None)
+
+
+def update_bombs(game_state: GameState):
+    """
+    Like in environment.py: self.update_explosions()
+    """
+    game_state['field'] = np.array(game_state['field'])
+    i = 0
+    while i < len(game_state['bombs']):
+        (bomb_coords, t) = game_state['bombs'][i]
+        t -= 1
+        if t < 0:
+            game_state['bombs'].pop(i)
+            all_blast_coords = get_blast_effected_coords(
+                blast_coords, game_state)
+            for blast_coords in all_blast_coords:
+                game_state['field'][blast_coords] = 0
+                game_state["explosion_map"][blast_coords] = s.EXPLOSION_TIMER
+        else:
+            game_state['bombs'][i] = (bomb_coords, t)
+            i += 1
+
+
+def evaluate_explosions(game_state: GameState):
+    """
+    Like in environment.py: self.evaluate_explosions()
+    """
+    agent_coords = game_state['self'][3]
+    if game_state["explosion_map"][agent_coords] != 0:
+        return None  # Player dies
+    others_copy = list(game_state['others'])  # Make a copy of the others list
+    for opponent in others_copy:
+        opponent_coords = opponent[3]
+        if game_state['explosion_map'][opponent_coords] != 0:
+            # Remove the opponent from the original list
+            game_state['others'].remove(opponent)
+
+
 def move_in_direction(coords, direction):
     return coords[0] + direction[0], coords[1] + direction[1]
 
 
-def march_forward(coords, direction):
+def march_forward(coords, action: str):
     x, y = coords
     # Forward in direction.
-    if direction == 'LEFT':
+    if action == 'LEFT':
         x -= 1
-    elif direction == 'RIGHT':
+    elif action == 'RIGHT':
         x += 1
-    elif direction == 'UP':
+    elif action == 'UP':
         y -= 1
-    elif direction == 'DOWN':
+    elif action == 'DOWN':
         y += 1
     return (x, y)
 
@@ -73,18 +180,18 @@ def is_wall_free_path(agent_coords: Tuple[int, int], bomb: Tuple[int, int], fiel
         return _is_wall_free_path(agent_coords[0], bomb[0], agent_coords[1], False)
 
 
-def is_dangerous_bomb(agent_coords: Tuple[int, int], bomb: Tuple[int, int], field) -> bool:
+def is_dangerous_bomb(agent_coords: Tuple[int, int], bomb_coords: Tuple[int, int], field) -> bool:
     """Check if a bomb is dangerous and has a clear path to the agent."""
-    return ((bomb[0] == agent_coords[0] or bomb[1] == agent_coords[1]) and
-            abs(bomb[0] - agent_coords[0]) + abs(bomb[1] - agent_coords[1]) <= 3 and
-            is_wall_free_path(agent_coords, bomb, field))
+    return ((bomb_coords[0] == agent_coords[0] or bomb_coords[1] == agent_coords[1]) and
+            abs(bomb_coords[0] - agent_coords[0]) + abs(bomb_coords[1] - agent_coords[1]) <= 3 and
+            is_wall_free_path(agent_coords, bomb_coords, field))
 
 
-def filter_dangerous_bombs(agent_coords: Tuple[int, int], bombs: List[Tuple[int, int]], field) -> List[Tuple[int, int]]:
+def filter_dangerous_bombs(agent_coords: Tuple[int, int], game_state: GameState) -> List[Tuple[int, int]]:
     """Filters bombs that are in the same row or column as the agent and within a distance of 3."""
     return [
-        bomb for bomb in bombs
-        if is_dangerous_bomb(agent_coords, bomb, field)
+        bomb[0] for bomb in game_state.bombs
+        if is_dangerous_bomb(agent_coords, bomb, game_state.field)
     ]
 
 
@@ -180,12 +287,19 @@ def is_valid_action(step_coords, field, opponents, bombs) -> bool:
             (not step_coords in bombs))
 
 
-def is_save_step(agent_coords, field, opponents, explosion_map, bombs):
-    # TODO pass in passed time
+def is_about_to_explode(sorted_dangerous_bombs):
+    if sorted_dangerous_bombs:
+        for bomb in sorted_dangerous_bombs:
+            if bomb[1] == 0:
+                return True
+    return False
+
+
+def is_save_step(new_coords, game_state: GameState):
     sorted_dangerous_bombs = sort_and_filter_out_dangerous_bombs(
-        agent_coords, bombs, field)
-    return (is_valid_action(agent_coords, field, opponents, bombs) and
-            not is_dangerous(agent_coords, explosion_map, sorted_dangerous_bombs))
+        new_coords, game_state)
+    return (is_valid_action(new_coords, game_state) and
+            not is_dangerous(new_coords, game_state.explosion_map, sorted_dangerous_bombs))
 
 
 def got_in_loop(agent_coords, agent_coord_history):
@@ -231,7 +345,7 @@ def find_closest_crate(agent_coords, field):
             return coords
 
         # Explore the four possible directions
-        for direction in MOVING_DIRECTIONS:
+        for direction in MOVEMENT_DIRECTIONS:
             next_coords = (coords[0] + direction[0], coords[1] + direction[1])
             if (0 <= next_coords[0] < rows and 0 <= next_coords[1] < cols and
                     next_coords not in visited):
@@ -261,7 +375,7 @@ def get_blast_effected_coords(bomb_coords, field) -> List[tuple[int, int]]:
     max_row, max_col = len(field), len(field[0])
 
     blast_coords = [bomb_coords]
-    for direction in MOVING_DIRECTIONS:
+    for direction in MOVEMENT_DIRECTIONS:
         for i in range(1, s.BOMB_POWER + 1):
             new_coords = bomb_coords[0] + direction[0] * \
                 i, bomb_coords[1] + direction[1] * i
@@ -283,7 +397,7 @@ def path_to_safety_exists(agent_coords, bomb_blast_coords, field, living_opponen
     visited = set([agent_coords])
     while queue:
         coords = queue.popleft()
-        for direction in MOVING_DIRECTIONS:
+        for direction in MOVEMENT_DIRECTIONS:
             new_coords = coords[0] + direction[0], coords[1] + direction[1]
 
             if (is_in_game_grid(new_coords, max_row, max_col) and
