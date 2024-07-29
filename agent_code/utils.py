@@ -1,7 +1,6 @@
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from collections import deque
-from dataclasses import dataclass, field as datafield
-from typing import TypedDict
+from dataclasses import dataclass
 import copy
 
 import numpy as np
@@ -32,96 +31,86 @@ FREE = 0
 @dataclass
 class GameState:
     field: np.ndarray
-    bombs: list[tuple[tuple[int, int], int]]
+    bombs: List[Tuple[Tuple[int, int], int]]
     explosion_map: np.ndarray
-    coins: list[tuple[int, int]]
-    self: tuple[str, int, bool, tuple[int, int]]
-    others: list[tuple[str, int, bool, tuple[int, int]]]
+    coins: List[Tuple[int, int]]
+    self: Tuple[str, int, bool, Tuple[int, int]]
+    others: List[Tuple[str, int, bool, Tuple[int, int]]]
     step: int
     round: int
-    user_input: str | None
+    user_input: Optional[str]
 
+    def next(self, action: str) -> Optional['GameState']:
+        """
+        Advances the game state by one action performed by the player. 
+        Returns None if action is invalid or agent dies
+        """
+        next_game_state = copy.deepcopy(self)
+        if not next_game_state._process_player_action(action):
+            return None
+        next_game_state._update_bombs()
+        next_game_state._evaluate_explosions()
+        next_game_state._update_explosions()
+        return next_game_state
 
-def get_next_game_state(action: str, game_state: GameState):
-    """
-    Advances the game state by one action performed by the player. 
-    Returns None if action is invalid or agent dies
+    def _process_player_action(self, action: str) -> bool:
+        name, score, bomb, agent_coords = self.self
 
-    Parameters:
-        game_state (Game): The current game state.
-        action (Action): The action to be performed by the player.
-
-    Returns:
-        Game or None: The new game state or None if the action results in an invalid state or player death.
-    """
-    next_game_state = copy.copy(game_state)
-    next_game_state['bombs'] = list(next_game_state['bombs'])
-
-    if not process_player_action(action, next_game_state):
-        return None
-
-    # Here we update explosions after the bombs are updated, becuase we want to mock the states that the agent actually see (explosion_map with entrys never above 1)
-    update_bombs(next_game_state)
-    evaluate_explosions(next_game_state)
-    update_explosions(next_game_state)
-
-    return next_game_state
-
-
-def process_player_action(action: str, game_state: GameState) -> bool:
-    """
-    Like environment.py self.poll_and_run_agents()
-    """
-    name, score, bomb, agent_coords = game_state['self']
-
-    if action in MOVEMENT:
-        direction = MOVEMENT[action]
-        new_coords = move_in_direction(agent_coords, direction)
-        if is_valid_action(new_coords, game_state):
-            game_state['self'] = (name, score, bomb, new_coords)
+        if action in MOVEMENT:
+            direction = MOVEMENT[action]
+            new_coords = move_in_direction(agent_coords, direction)
+            if self._is_valid_action(new_coords):
+                self.self = (name, score, bomb, new_coords)
+            else:
+                return False
+        elif action == "WAIT":
+            pass
+        elif action == "BOMB":
+            if bomb:
+                self.bombs.append((agent_coords, s.BOMB_TIMER))
+            else:
+                return False
         else:
-            return False
-    elif action == "WAIT":
-        pass
-    elif action == "BOMB":
-        if bomb:
-            game_state['bombs'].append((agent_coords, s.BOMB_TIMER))
-        else:
-            return False
+            raise ValueError("Action, doesn't exist")
 
-    else:
-        return False  # Invalid action
+        return True
 
-    return True
+    def _is_valid_action(self, step_coords) -> bool:
+        """
+        Check whether the action is possible or not.
+        Expects walls (-1) around game field!!
+        # TODO Self.opponents and self.bombs incorrect format
+        """
+        return (self.field[step_coords] == FREE and
+                (not step_coords in self.opponents) and
+                (not step_coords in self.bombs))
 
+    def _update_explosions(self):
+        """
+        Like in environment.py: self.update_explosions()
+        """
+        self["explosion_map"] = np.clip(
+            self["explosion_map"] - 1, 0, None)
 
-def update_explosions(game_state: GameState):
-    """
-    Like in environment.py: self.update_explosions()
-    """
-    game_state["explosion_map"] = np.clip(
-        game_state["explosion_map"] - 1, 0, None)
-
-
-def update_bombs(game_state: GameState):
-    """
-    Like in environment.py: self.update_explosions()
-    """
-    game_state['field'] = np.array(game_state['field'])
-    i = 0
-    while i < len(game_state['bombs']):
-        (bomb_coords, t) = game_state['bombs'][i]
-        t -= 1
-        if t < 0:
-            game_state['bombs'].pop(i)
-            all_blast_coords = get_blast_effected_coords(
-                blast_coords, game_state)
-            for blast_coords in all_blast_coords:
-                game_state['field'][blast_coords] = 0
-                game_state["explosion_map"][blast_coords] = s.EXPLOSION_TIMER
-        else:
-            game_state['bombs'][i] = (bomb_coords, t)
-            i += 1
+    def _update_bombs(self):
+        """
+        Like in environment.py: self.update_explosions()
+        """
+        self['field'] = np.array(self['field'])
+        i = 0
+        while i < len(self['bombs']):
+            (bomb_coords, t) = self['bombs'][i]
+            t -= 1
+            if t < 0:
+                self['bombs'].pop(i)
+                all_blast_coords = get_blast_effected_coords(
+                    blast_coords, game_state)
+                for blast_coords in all_blast_coords:
+                    self['field'][blast_coords] = 0
+                    self["explosion_map"][blast_coords] = s.EXPLOSION_TIMER
+            else:
+                self['bombs'][i] = (bomb_coords, t)
+                i += 1
 
 
 def evaluate_explosions(game_state: GameState):
@@ -302,6 +291,27 @@ def is_save_step(new_coords, game_state: GameState):
             not is_dangerous(new_coords, game_state.explosion_map, sorted_dangerous_bombs))
 
 
+def is_coin(coords, game_state: GameState):
+    return coords in game_state.coins
+
+
+def is_near_crate(coords, game_state: GameState) -> bool:
+    """Return True if the given coordinate is near a crate."""
+    for direction in MOVEMENT_DIRECTIONS:
+        new_coords = coords[0]+direction[0], coords[1] + direction[1]
+        if game_state.field[new_coords] == 1:
+            return True
+    return False
+
+
+def is_opponent_in_blast_range(coords, game_state: GameState) -> bool:
+    """Return True if the player is within blast range of the enemy."""
+    for opponent in game_state.others:
+        if opponent[3] in get_blast_effected_coords(coords, game_state.field):
+            return True
+    return False
+
+
 def got_in_loop(agent_coords, agent_coord_history):
     loop_count = agent_coord_history.count(agent_coords)
     return loop_count > 2
@@ -441,3 +451,131 @@ def simulate_bomb(bomb, field, sorted_living_opponents, bombs):
     is_effective = num_destroying_crates > 0 or could_hit_opponent
 
     return can_reach_safety, is_effective
+
+
+def find_shortest_path(start_coords, game_state: GameState, stop_criterion: function):
+    """
+    Returns the shortest path to one of the given goal coordinates, currently bombs and opponents block movements
+    with next game state estimation
+    # TODO put waiting into exploring?
+    """
+    queue = deque([start_coords, game_state])
+    visited = set([start_coords])
+    parent = {start_coords: None}
+
+    while queue:
+        current_coords, current_game_state = queue.popleft()
+        if stop_criterion(current_coords, current_game_state):
+            step = current_coords
+            path = []
+            while step != start_coords:
+                path.append(step)
+                step = parent[step]
+            return path[::-1]
+
+        for action in MOVEMENT_ACTIONS:
+            next_game_state = get_next_game_state(action, current_game_state)
+            if next_game_state != None:
+                new_coords = next_game_state['self'][3]
+                if new_coords not in visited:
+                    queue.append(new_coords)
+                    visited.add(new_coords)
+                    parent[new_coords] = new_coords
+    return []
+
+
+def get_action_idx_from_coords(agent_coords, new_coords):
+    direction = (new_coords[0]-agent_coords[0], new_coords[1]-agent_coords[1])
+    return MOVEMENT_DIRECTIONS.index(direction)
+
+
+def get_action_idx_to_closest_thing(game_state: GameState, stop_criterion: function):
+    agent_coords = game_state.self[3]
+    shortest_path = find_shortest_path(
+        agent_coords, game_state, stop_criterion)
+
+    if shortest_path:
+        first_step_coords = shortest_path[0]
+        return get_action_idx_from_coords(first_step_coords)
+    else:
+        return ACTIONS.index('WAIT')
+
+
+def get_danger_in_each_direction(coords, game_state: GameState):
+    danger_per_action = np.zeros(len(DIRECTIONS_AND_WAIT))
+    for idx_action, direction in enumerate(DIRECTIONS_AND_WAIT):
+        new_coords = coords[0] + direction[0], coords[1] + direction[1]
+        sorted_dangerous_bombs = sort_and_filter_out_dangerous_bombs(
+            new_coords, game_state)
+        if game_state.explosion_map[new_coords] == 1:
+            danger_per_action[idx_action] = EXTREME_DANGER
+        for bomb_coords, timer in sorted_dangerous_bombs:
+            blast_coords = get_blast_effected_coords(
+                bomb_coords, game_state.field)
+            if new_coords in blast_coords:
+                match timer:
+                    case 0:
+                        danger_per_action[idx_action] = max(
+                            danger_per_action[idx_action], EXTREME_DANGER)
+                    case 1:
+                        danger_per_action[idx_action] = max(
+                            danger_per_action[idx_action], HIGH_DANGER)
+                    case 2:
+                        danger_per_action[idx_action] = max(
+                            danger_per_action[idx_action], MEDIUM_DANGER)
+                    case 3:
+                        danger_per_action[idx_action] = max(
+                            danger_per_action[idx_action], LOW_DANGER)
+
+    return danger_per_action
+
+
+def is_deadend(coords, game_state: GameState):
+    count_free_tiles = 0
+    for direction in MOVEMENT_DIRECTIONS:
+        new_coords = move_in_direction(coords, direction)
+        if game_state.field[new_coords] == FREE:
+            count_free_tiles += 1
+    return count_free_tiles <= 1
+
+
+def get_possible_directions(agent_coords, game_state: GameState):
+    possible_directions = []
+    for direction in MOVEMENT_DIRECTIONS:
+        new_coords = march_forward(agent_coords, direction)
+        if is_valid_action(new_coords, game_state):
+            possible_directions.append(direction)
+    return possible_directions
+
+
+def are_opposite_directions(directions):
+    if directions == 2:
+        direction_1 = directions[0]
+        direction_2 = directions[1]
+        return (direction_1[0] + direction_2[0] == 0 and
+                direction_1[1] + direction_2[1] == 0)
+    return False
+
+
+def opponent_in_deadend(opponent, game_state):
+    """
+    Returns if opponent is in deadend (e.g only has two availabe opposite directions that 
+    he can walk and one of them leads into a deadend)
+    """
+    opponent_coord = opponent[3]
+    possible_directions = get_possible_directions(opponent_coord, game_state)
+    if len(possible_directions) <= 2 and are_opposite_directions(possible_directions):
+        for direction in possible_directions:
+            new_coords = opponent_coord
+            for i in range(0, s.BOMB_POWER):
+                new_coords = move_in_direction(new_coords, direction)
+                if is_deadend(new_coords, game_state):
+                    return True
+    return False
+
+
+def would_surely_kill_opponent(bomb_blast_coords, game_state: GameState):
+    for opponent in game_state.others:
+        if opponent_in_deadend(opponent, game_state) and potentially_destroying_opponent(bomb_blast_coords, [opponent]):
+            return True
+    return False

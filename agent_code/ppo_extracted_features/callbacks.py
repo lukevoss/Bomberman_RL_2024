@@ -2,9 +2,7 @@
 This File is called by the environment and manages the agents movements
 Implementation of a PPO algorithm with LSTM and MLP networks as Actor Critic
 
-Deep learning approach without feature engineering:
-Board is representet in 15x15x7 vector
-Symmetry of board is leveraged
+Deep learning approach with feature engineering:
 
 Current status:
 Agent learn, but gets stuck on bad local maxima. Behavioral cloning to solve issue, but results are still bad
