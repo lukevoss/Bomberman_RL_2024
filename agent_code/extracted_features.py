@@ -46,66 +46,59 @@ Board is abstracted as a boolean vector of size 20 with each feature as followin
 
     [29] Currently in the lead
 
-    ??[30] Number of coins left in Game ??
+    Additional Ideas:
+        - Number of coins left in Game
+        - sometimes placing a bomb before running out of danger can trap a opponent between two bombs
 
 
-# TODO make crossing of bomb danger zone possible
-# TODO sometimes placing a bomb before running out of danger can trap a opponent between two bombs
-# TODO Should we do masking?
-# TODO are any coins left in game? If not start hunting and dont destroy more crates
 # TODO Controll correct action_idx
 Author: Luke Voss
 """
 import numpy as np
-
 
 from utils import *
 
 FEATURE_VECTOR_SIZE = 30
 
 
-def state_to_features(game_state: dict, scores) -> np.array:
+def state_to_features(game_state: dict, max_opponent_score: int) -> np.array:
     feature_vector = np.zeros(FEATURE_VECTOR_SIZE)
 
-    game_state = GameState(**game_state)
-    agent_coords = game_state.self[3]
+    state = GameState(**game_state)
+    agent_coords = state.self[3]
 
-    # How to get to closes coin
-    action_idx_to_coin = get_action_idx_to_closest_thing(game_state, is_coin)
+    # How to get to closest coin
+    action_idx_to_coin = state.get_action_idx_to_closest_thing('coin')
     feature_vector[action_idx_to_coin] = 1
 
     # How to get to closest crate
-    action_idx_to_crate = get_action_idx_to_closest_thing(
-        game_state, is_near_crate)
+    action_idx_to_crate = state.get_action_idx_to_closest_thing('crate')
     feature_vector[action_idx_to_crate + 5] = 1
 
     # How to get in the reach of opponents
-    action_idx_to_opponents = get_action_idx_to_closest_thing(
-        game_state, is_opponent_in_blast_range)
+    action_idx_to_opponents = state.get_action_idx_to_closest_thing('opponent')
     feature_vector[action_idx_to_opponents + 10] = 1
 
     # How to get to safety
-    action_idx_to_safety = get_action_idx_to_closest_thing(
-        game_state, is_save_step)
+    action_idx_to_safety = state.get_action_idx_to_closest_thing('safety')
     feature_vector[action_idx_to_safety + 15] = 1
 
     # How much danger is estimated in each direction
-    feature_vector[20:25] = get_danger_in_each_direction(
-        agent_coords, game_state)
+    feature_vector[20:25] = state.get_danger_in_each_direction(agent_coords)
 
-    # Could we survive a bomb?
-    can_reach_safety, _ = simulate_bomb(agent_coords, game_state)
+    # Could we survive a placed bomb?
+    can_reach_safety, _ = state.simulate_bomb(agent_coords)
     feature_vector[25] = can_reach_safety
 
     # Can we place a bomb?
-    feature_vector[26] = game_state.self[2]
+    feature_vector[26] = state.self[2]
 
     # Is it a perfect spot for a bomb?
-    feature_vector[27] = is_perfect_bomb_spot(agent_coords, game_state)
+    feature_vector[27] = state.is_perfect_bomb_spot(agent_coords)
 
     # Normalized Number of living opponent
-    feature_vector[28] = len(game_state.others) / 3
+    feature_vector[28] = len(state.others) / 3
 
     # Are we currently in the lead?
-    own_score = game_state.self[1]
-    feature_vector[29] = own_score > max(scores)
+    own_score = state.self[1]
+    feature_vector[29] = own_score > max_opponent_score

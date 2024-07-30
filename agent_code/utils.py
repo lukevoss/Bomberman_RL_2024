@@ -57,6 +57,138 @@ class GameState:
         next_game_state._update_explosions()
         return next_game_state
 
+    def not_escaping_danger(self_action: str):
+        return self_action == 'WAIT' or self_action == 'BOMB'
+
+    def is_escaping_danger(self, self_action: str, sorted_dangerous_bombs: List[Tuple[int, int]]):
+        agent_coords = self.self[3]
+        new_agents_coords = march_forward(agent_coords, self_action)
+        if self.is_valid_action(new_agents_coords):
+            if sorted_dangerous_bombs:
+                closest_bomb = sorted_dangerous_bombs[0]
+                return increased_distance(agent_coords, new_agents_coords, closest_bomb)
+            else:
+                return True
+        return False
+
+    def has_escaped_danger(self, self_action: str) -> bool:
+        agent_coords = self.self[3]
+        new_agents_coords = march_forward(agent_coords, self_action)
+        if self.is_valid_action(new_agents_coords):
+            sorted_dangerous_bombs = self.sort_and_filter_out_dangerous_bombs(
+                new_agents_coords)
+            return not self.is_dangerous(new_agents_coords, sorted_dangerous_bombs)
+        else:
+            return False
+
+    def is_valid_action(self, step_coords: Tuple[int, int]) -> bool:
+        """
+        Check whether the action is possible or not.
+        Expects walls (-1) around game field!!
+        """
+        opponent_positions = {opponent[3] for opponent in self.others}
+        bomb_positions = {bomb[0] for bomb in self.bombs}
+
+        return (self.field[step_coords] == FREE and
+                (not step_coords in opponent_positions) and
+                (not step_coords in bomb_positions))
+
+    def is_dangerous(self, step_coords: Tuple[int, int], sorted_dangerous_bombs: List[Tuple[int, int]]) -> bool:
+        """Function checks if given position is dangerous"""
+        return self._is_in_explosion(step_coords) or sorted_dangerous_bombs
+
+    def waited_necessarily(self) -> bool:
+        """
+        Check if there is an explosion or danger around agent
+        """
+        x_agent, y_agent = self.self[3]
+        return (not self.is_save_step((x_agent+1, y_agent)) and
+                not self.is_save_step((x_agent-1, y_agent)) and
+                not self.is_save_step((x_agent, y_agent+1)) and
+                not self.is_save_step((x_agent, y_agent-1)))
+
+    def is_save_step(self, new_coords: Tuple[int, int]) -> bool:
+        sorted_dangerous_bombs = self.sort_and_filter_out_dangerous_bombs(
+            new_coords)
+        return (self.is_valid_action(new_coords) and
+                not self.is_dangerous(new_coords, sorted_dangerous_bombs))
+
+    def simulate_bomb(self, bomb_coords: Tuple[int, int]) -> Tuple[bool, bool]:
+        """ Simulate the bomb explosion and evaluate its effects. """
+        bomb_blast_coords = self._get_blast_effected_coords(bomb_coords)
+        can_reach_safety = self._path_to_safety_exists(bomb_coords)
+        could_hit_opponent = self._potentially_destroying_opponent(
+            bomb_blast_coords)
+        num_destroying_crates = self._get_number_of_destroying_crates(
+            bomb_blast_coords)
+        is_effective = num_destroying_crates > 0 or could_hit_opponent
+
+        return can_reach_safety, is_effective
+
+    def get_action_idx_to_closest_thing(self, thing: str) -> int:
+        agent_coords = self.self[3]
+        shortest_path = self._find_shortest_path(
+            agent_coords, thing)
+
+        if shortest_path:
+            first_step_coords = shortest_path[0]
+            return get_action_idx_from_coords(first_step_coords)
+        else:
+            return ACTIONS.index('WAIT')
+
+    def get_danger_in_each_direction(self, coords: Tuple[int, int]) -> np.ndarray:
+        danger_per_action = np.zeros(len(DIRECTIONS_AND_WAIT))
+        for idx_action, direction in enumerate(DIRECTIONS_AND_WAIT):
+            new_coords = coords[0] + direction[0], coords[1] + direction[1]
+            sorted_dangerous_bombs = self.sort_and_filter_out_dangerous_bombs(
+                new_coords)
+            if self.explosion_map[new_coords] == 1:
+                danger_per_action[idx_action] = EXTREME_DANGER
+            for bomb_coords, timer in sorted_dangerous_bombs:
+                blast_coords = self._get_blast_effected_coords(
+                    bomb_coords)
+                if new_coords in blast_coords:
+                    match timer:
+                        case 0:
+                            danger_per_action[idx_action] = max(
+                                danger_per_action[idx_action], EXTREME_DANGER)
+                        case 1:
+                            danger_per_action[idx_action] = max(
+                                danger_per_action[idx_action], HIGH_DANGER)
+                        case 2:
+                            danger_per_action[idx_action] = max(
+                                danger_per_action[idx_action], MEDIUM_DANGER)
+                        case 3:
+                            danger_per_action[idx_action] = max(
+                                danger_per_action[idx_action], LOW_DANGER)
+
+        return danger_per_action
+
+    def is_perfect_bomb_spot(self, coords: Tuple[int, int]) -> bool:
+        bomb_blast_coords = self._get_blast_effected_coords(coords)
+        n_destroying_crates = self._get_number_of_destroying_crates(
+            bomb_blast_coords)
+        would_kill_opponent = self._would_surely_kill_opponent(
+            bomb_blast_coords)
+        return n_destroying_crates >= 4 or would_kill_opponent
+
+    def sort_and_filter_out_dangerous_bombs(self, agent_coords: Tuple[int, int]) -> List[Tuple[int, int]]:
+        """
+        Filters and sorts bombs by their Manhattan distance to the agent's position, considering only those
+        bombs that are either in the same row (y coordinate) or the same column (x coordinate) as the agent and 
+        having a distance of 3 or less and not beeing blocked by walls, thus being a potential danger.
+        """
+        dangerous_bombs = self._filter_dangerous_bombs(agent_coords)
+
+        dangerous_bombs = sort_objects_by_distance(
+            agent_coords, dangerous_bombs)
+
+        return dangerous_bombs
+
+    def sort_opponents(self, agent_coords: Tuple[int, int]) -> List[Tuple[int, int]]:
+        opponent_positions = {opponent[3] for opponent in self.others}
+        return sort_objects_by_distance(agent_coords, opponent_positions)
+
     def _process_player_action(self, action: str) -> bool:
         name, score, bomb, agent_coords = self.self
 
@@ -106,7 +238,7 @@ class GameState:
             self['field'][blast_coords] = 0
             self["explosion_map"][blast_coords] = s.EXPLOSION_TIMER
 
-    def evaluate_explosions(self):
+    def _evaluate_explosions(self):
         """
         Like in environment.py: self.evaluate_explosions()
         """
@@ -121,135 +253,6 @@ class GameState:
             opponent_coords = opponent[3]
             if self.explosion_map[opponent_coords] != 0:
                 self.others.remove(opponent)
-
-    def not_escaping_danger(self_action: str):
-        return self_action == 'WAIT' or self_action == 'BOMB'
-
-    def is_escaping_danger(self, self_action: str, sorted_dangerous_bombs: List[Tuple[int, int]]):
-        agent_coords = self.self[3]
-        new_agents_coords = march_forward(agent_coords, self_action)
-        if self.is_valid_action(new_agents_coords):
-            if sorted_dangerous_bombs:
-                closest_bomb = sorted_dangerous_bombs[0]
-                return increased_distance(agent_coords, new_agents_coords, closest_bomb)
-            else:
-                return True
-        return False
-
-    def has_escaped_danger(self, self_action: str) -> bool:
-        agent_coords = self.self[3]
-        new_agents_coords = march_forward(agent_coords, self_action)
-        if self.is_valid_action(new_agents_coords):
-            sorted_dangerous_bombs = self.sort_and_filter_out_dangerous_bombs(
-                new_agents_coords)
-            return not self.is_dangerous(new_agents_coords, sorted_dangerous_bombs)
-        else:
-            return False
-
-    def is_valid_action(self, step_coords: Tuple[int, int]) -> bool:
-        """
-        Check whether the action is possible or not.
-        Expects walls (-1) around game field!!
-        """
-        opponent_positions = {opponent[3] for opponent in self.others}
-        bomb_positions = {bomb[0] for bomb in self.bombs}
-
-        return (self.field[step_coords] == FREE and
-                (not step_coords in opponent_positions) and
-                (not step_coords in bomb_positions))
-
-    def is_dangerous(self, step_coords: Tuple[int, int], sorted_dangerous_bombs: List[Tuple[int, int]]) -> bool:
-        """Function checks if given position is dangerous"""
-        return self._is_in_explosion(step_coords) or sorted_dangerous_bombs
-
-    def waited_necessarily(self, agent_coords: Tuple[int, int]) -> bool:
-        """
-        Check if there is an explosion or danger around agent
-        """
-        x_agent, y_agent = agent_coords
-        return (not self.is_save_step((x_agent+1, y_agent)) and
-                not self.is_save_step((x_agent-1, y_agent)) and
-                not self.is_save_step((x_agent, y_agent+1)) and
-                not self.is_save_step((x_agent, y_agent-1)))
-
-    def is_save_step(self, new_coords: Tuple[int, int]) -> bool:
-        sorted_dangerous_bombs = self.sort_and_filter_out_dangerous_bombs(
-            new_coords)
-        return (self.is_valid_action(new_coords) and
-                not self.is_dangerous(new_coords, sorted_dangerous_bombs))
-
-    def simulate_bomb(self, bomb_coords: Tuple[int, int]) -> Tuple[bool, bool]:
-        """ Simulate the bomb explosion and evaluate its effects. """
-        bomb_blast_coords = self._get_blast_effected_coords(bomb_coords)
-        can_reach_safety = self._path_to_safety_exists(
-            bomb_coords, bomb_blast_coords)
-        could_hit_opponent = self._potentially_destroying_opponent(
-            bomb_blast_coords)
-        num_destroying_crates = self._get_number_of_destroying_crates(
-            bomb_blast_coords)
-        is_effective = num_destroying_crates > 0 or could_hit_opponent
-
-        return can_reach_safety, is_effective
-
-    def get_action_idx_to_closest_thing(self, stop_criterion: function) -> int:
-        agent_coords = self.self[3]
-        shortest_path = self._find_shortest_path(
-            agent_coords, stop_criterion)
-
-        if shortest_path:
-            first_step_coords = shortest_path[0]
-            return get_action_idx_from_coords(first_step_coords)
-        else:
-            return ACTIONS.index('WAIT')
-
-    def get_danger_in_each_direction(self, coords: Tuple[int, int]) -> np.ndarray:
-        danger_per_action = np.zeros(len(DIRECTIONS_AND_WAIT))
-        for idx_action, direction in enumerate(DIRECTIONS_AND_WAIT):
-            new_coords = coords[0] + direction[0], coords[1] + direction[1]
-            sorted_dangerous_bombs = self.sort_and_filter_out_dangerous_bombs(
-                new_coords)
-            if self.explosion_map[new_coords] == 1:
-                danger_per_action[idx_action] = EXTREME_DANGER
-            for bomb_coords, timer in sorted_dangerous_bombs:
-                blast_coords = self._get_blast_effected_coords(
-                    bomb_coords)
-                if new_coords in blast_coords:
-                    match timer:
-                        case 0:
-                            danger_per_action[idx_action] = max(
-                                danger_per_action[idx_action], EXTREME_DANGER)
-                        case 1:
-                            danger_per_action[idx_action] = max(
-                                danger_per_action[idx_action], HIGH_DANGER)
-                        case 2:
-                            danger_per_action[idx_action] = max(
-                                danger_per_action[idx_action], MEDIUM_DANGER)
-                        case 3:
-                            danger_per_action[idx_action] = max(
-                                danger_per_action[idx_action], LOW_DANGER)
-
-        return danger_per_action
-
-    def is_perfect_bomb_spot(self, agent_coords: Tuple[int, int]) -> bool:
-        bomb_blast_coords = self._get_blast_effected_coords(agent_coords)
-        n_destroying_crates = self._get_number_of_destroying_crates(
-            bomb_blast_coords)
-        would_kill_opponent = self._would_surely_kill_opponent(
-            bomb_blast_coords)
-        return n_destroying_crates >= 4 or would_kill_opponent
-
-    def sort_and_filter_out_dangerous_bombs(self, agent_coords: Tuple[int, int]) -> List[Tuple[int, int]]:
-        """
-        Filters and sorts bombs by their Manhattan distance to the agent's position, considering only those
-        bombs that are either in the same row (y coordinate) or the same column (x coordinate) as the agent and 
-        having a distance of 3 or less and not beeing blocked by walls, thus being a potential danger.
-        """
-        dangerous_bombs = self._filter_dangerous_bombs(agent_coords)
-
-        dangerous_bombs = sort_objects_by_distance(
-            agent_coords, dangerous_bombs)
-
-        return dangerous_bombs
 
     def _get_blast_effected_coords(self, bomb_coords: Tuple[int, int]) -> List[tuple[int, int]]:
         """
@@ -326,31 +329,12 @@ class GameState:
 
         return None
 
-    def _path_to_safety_exists(self, agent_coords: Tuple[int, int], bomb_blast_coords: Tuple[int, int]) -> bool:
+    def _path_to_safety_exists(self, agent_coords: Tuple[int, int]) -> bool:
         """
         Gives if there exist a path to safety based on the given agents coordinates and the simulated bombs field. 
-        Bombs and opponents are considered as not vanishing and not moving.
-        TODO Include estimating next gamestate
+        Based on next game state estimation
         """
-        queue = deque([agent_coords])
-        visited = set([agent_coords])
-        opponent_positions = {opponent[3] for opponent in self.others}
-        bomb_positions = {opponent[3] for opponent in self.others}
-        while queue:
-            coords = queue.popleft()
-            for direction in MOVEMENT_DIRECTIONS:
-                new_coords = coords[0] + direction[0], coords[1] + direction[1]
-
-                if (is_in_game_grid(new_coords) and
-                    new_coords not in visited and
-                    new_coords not in opponent_positions and
-                        new_coords not in bomb_positions):
-                    if new_coords not in bomb_blast_coords:
-                        return True
-                    if self.field[new_coords] == FREE:
-                        visited.add(new_coords)
-                        queue.append(new_coords)
-        return False  # No safe path exists
+        return self._find_shortest_path(agent_coords, 'safety', place_bomb=True) != []
 
     def get_stop_criterion_for_thing(self, thing: str) -> function:
         match thing:
@@ -363,13 +347,17 @@ class GameState:
             case 'safety':
                 return self.is_save_step
 
-    def _find_shortest_path(self, start_coords: Tuple[int, int], thing: str):
+    def _find_shortest_path(self, start_coords: Tuple[int, int], thing: str, place_bomb=False):
         """
         Returns the shortest path to one of the given goal coordinates, currently bombs and opponents block movements
         with next game state estimation
         # TODO put waiting into exploring?
         """
-        queue = deque([start_coords, self])
+        starting_game_state = copy.deepcopy(self)
+        if place_bomb:
+            starting_game_state.bombs.append(start_coords, s.BOMB_TIMER)
+
+        queue = deque([start_coords, starting_game_state])
         visited = set([start_coords])
         parent = {start_coords: None}
         stop_criterion = self.get_stop_criterion_for_thing(thing)
@@ -387,11 +375,11 @@ class GameState:
             for action in MOVEMENT_ACTIONS:
                 next_game_state = current_game_state.next(action)
                 if next_game_state != None:
-                    new_coords = next_game_state['self'][3]
+                    new_coords = next_game_state.self[3]
                     if new_coords not in visited:
                         queue.append(new_coords)
                         visited.add(new_coords)
-                        parent[new_coords] = new_coords
+                        parent[new_coords] = current_coords
         return []
 
     def _potentially_destroying_opponent(self, bomb_blast_coords: Tuple[int, int]) -> bool:
