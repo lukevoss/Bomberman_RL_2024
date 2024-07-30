@@ -42,9 +42,11 @@ Board is abstracted as a boolean vector of size 20 with each feature as followin
 
     [27] Very smart bomb position: Would destroy 4 or more crates or opponent in trap
 
-    [28] Only one opponent left
+    [28] Normalized number of opponents left (1 = all still alive, 0 = no one left)
 
     [29] Currently in the lead
+
+    ??[30] Number of coins left in Game ??
 
 
 # TODO make crossing of bomb danger zone possible
@@ -60,11 +62,6 @@ import numpy as np
 from utils import *
 
 FEATURE_VECTOR_SIZE = 30
-EXTREME_DANGER = 1
-HIGH_DANGER = 0.75
-MEDIUM_DANGER = 0.5
-LOW_DANGER = 0.25
-NO_DANGER = 0
 
 
 def state_to_features(game_state: dict, scores) -> np.array:
@@ -104,18 +101,10 @@ def state_to_features(game_state: dict, scores) -> np.array:
     feature_vector[26] = game_state.self[2]
 
     # Is it a perfect spot for a bomb?
-    bomb_blast_coords = get_blast_effected_coords(
-        agent_coords, game_state.field)
-    n_destroying_crates = get_number_of_destroying_crates(
-        bomb_blast_coords, game_state.field)
-    would_kill_opponent = would_surely_kill_opponent(
-        bomb_blast_coords, game_state)
+    feature_vector[27] = is_perfect_bomb_spot(agent_coords, game_state)
 
-    feature_vector[27] = n_destroying_crates >= 4 or would_kill_opponent
-
-    # Is currently only one opponent left?
-    living_opponent = game_state.others
-    feature_vector[28] = len(living_opponent) <= 1
+    # Normalized Number of living opponent
+    feature_vector[28] = len(game_state.others) / 3
 
     # Are we currently in the lead?
     own_score = game_state.self[1]

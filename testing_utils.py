@@ -193,20 +193,20 @@ class TestingUtils(unittest.TestCase):
     def test_has_won_the_game(self):
         # Win at the end of the round
         single_opponent = [('opponent2', 3, 1, (1, 1))]
-        self.assertTrue(has_won_the_game(
+        self.assertTrue(has_won_the_round(
             self.opponents, 5, [], MAX_STEPS))
         # Player got killed
-        self.assertFalse(has_won_the_game(
+        self.assertFalse(has_won_the_round(
             self.opponents, 5, ['GOT_KILLED'], 50))
         # Player killed themselves with more than one opponent alive
-        self.assertFalse(has_won_the_game(
+        self.assertFalse(has_won_the_round(
             self.opponents, 5, ['KILLED_SELF'], 50))
         # Player killed themselves with no opponents left
-        self.assertTrue(has_won_the_game(
+        self.assertTrue(has_won_the_round(
             single_opponent, 5, ['KILLED_SELF'], 50))
         # Check for invalid game state exception
         with self.assertRaises(ValueError):
-            has_won_the_game(single_opponent, 2, [], 50)
+            has_won_the_round(single_opponent, 2, [], 50)
 
     def test_not_escaping_danger(self):
         self.assertTrue(not_escaping_danger('WAIT'))

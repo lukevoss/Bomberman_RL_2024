@@ -9,30 +9,25 @@ import own_events as own_e
 def add_own_events(old_game_state, self_action, events_src, end_of_round, agent_coord_history) -> list:
 
     # events = copy.deepcopy(events_src)
+    state = GameState(**old_game_state)
     events = events_src.copy()
     events.append(own_e.CONSTANT_PENALTY)
 
-    field = old_game_state['field']
     agent_coords = old_game_state['self'][3]
     is_bomb_possible = old_game_state['self'][2]
-    bombs = [xy for (xy, t) in old_game_state['bombs']]
-    sorted_dangerous_bombs = sort_and_filter_out_dangerous_bombs(
-        agent_coords, bombs)
-    living_opponents = old_game_state['others']
-    sorted_living_opponents = sort_opponents_by_distance(
-        agent_coords, living_opponents)
-    coins = old_game_state['coins']
-    explosion_map = old_game_state['explosion_map']
+    sorted_dangerous_bombs = state.sort_and_filter_out_dangerous_bombs(
+        agent_coords)
+
     score_self = old_game_state['self'][1]
     steps_of_round = old_game_state['steps']
 
     if end_of_round:
-        if has_won_the_game(living_opponents, score_self, events, steps_of_round):
-            events.append(own_e.WON_GAME)
+        if has_won_the_round(state.others, score_self, events, steps_of_round):
+            events.append(own_e.WON_ROUND)
     else:
         events.append(own_e.SURVIVED_STEP)
 
-    if is_dangerous(agent_coords, explosion_map, sorted_dangerous_bombs):
+    if state.is_dangerous(agent_coords, sorted_dangerous_bombs):
         if not_escaping_danger(self_action):
             events.append(own_e.NOT_ESCAPING)
         elif has_escaped_danger(agent_coords, self_action, field, living_opponents, bombs, explosion_map):

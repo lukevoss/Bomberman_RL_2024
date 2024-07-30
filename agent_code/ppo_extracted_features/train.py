@@ -124,7 +124,7 @@ def reward_from_events(self, events: List[str]) -> int:
         own_e.CLOSER_TO_COIN: coin_action,
         own_e.AWAY_FROM_COIN: -coin_action,
         own_e.CONSTANT_PENALTY: -0.001,
-        own_e.WON_GAME: 10,
+        own_e.WON_ROUND: 10,
         own_e.GET_IN_LOOP: -0.025 * self.loop_count,
 
         # DEFAULT EVENTS
