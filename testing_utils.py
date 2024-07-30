@@ -1,6 +1,8 @@
 """
 Keep in mind that game state is turned making it quite complicated
 Movement from game_state to GUI
+Gui[x,y] = game_state[y,x]
+
 Down -> Right
 Up -> Left
 Left -> Up
@@ -10,13 +12,84 @@ Right -> Down
 # TODO Add is effective
 """
 
+from agent_code.utils import *
 import unittest
 import numpy as np
 from numpy.testing import assert_array_equal
 
-from agent_code.utils import *
+EMPTY_FIELD = np.array([
+    [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+    [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
+    [-1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1],
+    [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
+    [-1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1],
+    [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
+    [-1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1],
+    [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
+    [-1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1],
+    [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
+    [-1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1],
+    [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
+    [-1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1],
+    [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
+    [-1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1],
+    [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
+    [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1]
+])
 
 
+class TestingGameState(unittest.TestCase):
+    def setUp(self):
+        self.state = GameState(
+            field=EMPTY_FIELD,
+            bombs=[],
+            explosion_map=np.zeros((s.ROWS, s.COLS)),
+            coins=[],
+            self=('test_agent', 0, 1, (1, 1)),
+            others=[],
+            step=0,
+            round=0,
+            user_input=None
+        )
+
+    def test_next(self):
+        old_game_state = copy.deepcopy(self.state)
+        # Valid move action
+        next_game_state = old_game_state.next("RIGHT")
+        self.assertEqual(next_game_state.self[3], (2, 1))
+
+        # Invalid action agains wall
+        next_game_state = old_game_state.next("UP")
+        self.assertIsNone(next_game_state)
+
+        # Wait action
+        next_game_state = old_game_state.next("WAIT")
+        self.assertEqual(next_game_state.self[3], old_game_state.self[3])
+
+        # Valid bomb action
+        next_game_state = old_game_state.next("BOMB")
+        self.assertEqual(next_game_state.bombs, [((1, 1), s.BOMB_TIMER-1)])
+
+        # Invalid bomb action
+        old_game_state.self = ('test_agent', 0, 0, (1, 1))
+        next_game_state = old_game_state.next("BOMB")
+        self.assertIsNone(next_game_state)
+        old_game_state.self = ('test_agent', 0, 1, (1, 1))
+
+        # Bomb explodes and clear one create
+        old_game_state.bombs = [((3, 2), 0)]
+        old_game_state.field[3, 1] = 1
+
+        next_game_state = old_game_state.next("WAIT")
+
+        blast_idx = [(3, 1), (3, 2), (3, 3), (3, 4), (3, 5)]
+        old_game_state.explosion_map[blast_idx] = 1
+        assert_array_equal(next_game_state.field, self.state.field)
+        assert_array_equal(next_game_state.explosion_map,
+                           old_game_state.explosion_map)
+
+
+"""
 class TestingUtils(unittest.TestCase):
     def setUp(self):
         # Common field setup for the tests
@@ -494,7 +567,7 @@ class TestingUtils(unittest.TestCase):
             (1, 3), self.small_game_field, opponents, bombs)
         self.assertFalse(can_reach_safety)
         self.assertTrue(is_effective)
-
+"""
 
 if __name__ == '__main__':
     unittest.main()

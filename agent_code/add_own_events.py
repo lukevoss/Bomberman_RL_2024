@@ -1,15 +1,12 @@
-# TODO only give game state to utils?
-# TODO let agent save scores of others
-
 from utils import *
 import events as e
 import own_events as own_e
 
 
-def add_own_events(old_game_state, self_action, events_src, end_of_round, agent_coord_history) -> list:
+def add_own_events(old_game_state, self_action, events_src, end_of_round, agent_coord_history, max_opponents_score) -> list:
 
     state = GameState(**old_game_state)
-    events = copy.deepcopy(events_src)  # TODO Necessary?
+    events = copy.deepcopy(events_src)
     events.append(own_e.CONSTANT_PENALTY)
 
     agent_coords = old_game_state['self'][3]
@@ -19,10 +16,9 @@ def add_own_events(old_game_state, self_action, events_src, end_of_round, agent_
     sorted_opponents_positions = state.sort_opponents(agent_coords)
 
     score_self = old_game_state['self'][1]
-    steps_of_round = old_game_state['steps']
 
     if end_of_round:
-        if has_won_the_round(state.others, score_self, events, steps_of_round):
+        if score_self > max_opponents_score:
             events.append(own_e.WON_ROUND)
     else:
         events.append(own_e.SURVIVED_STEP)

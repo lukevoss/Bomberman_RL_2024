@@ -46,14 +46,18 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     """
     # Hand out self shaped events
     events = add_own_events(self, old_game_state, self_action, events,
-                            end_of_round=False, agent_coord_history=self.agent_coord_history)
+                            end_of_round=False,
+                            agent_coord_history=self.agent_coord_history,
+                            max_opponents_score=self.max_opponents_score)
 
     # Log Events
     self.logger.debug(f'Encountered game event(s) {", ".join(
         map(repr, events))} in step {new_game_state["step"]}')
 
-    old_feature_state = state_to_features(old_game_state)
-    new_feature_state = state_to_features(new_game_state)
+    old_feature_state = state_to_features(
+        old_game_state, self.max_opponents_score)
+    new_feature_state = state_to_features(
+        new_game_state, self.max_opponents_score)
     reward = reward_from_events(self, events)
     is_not_terminal = True
 
@@ -77,7 +81,9 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
     # Hand out self shaped events
     events = add_own_events(self, last_game_state, last_action, events,
-                            end_of_round=False, agent_coord_history=self.agent_coord_history)
+                            end_of_round=False,
+                            agent_coord_history=self.agent_coord_history,
+                            max_opponents_score=self.max_opponents_score)
 
     # Log Events
     self.logger.debug(f'Encountered event(s) 

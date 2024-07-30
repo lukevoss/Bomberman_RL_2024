@@ -42,6 +42,7 @@ def setup(self):
 
     self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     self.current_round = 0
+    self.max_opponents_score = 0
 
     # Agent Position history before normalization
     self.agent_coord_history = deque([], self.MAX_COORD_HISTORY)
@@ -53,12 +54,13 @@ def setup(self):
                           device=self.device)
 
 
-def reset_self(self, game_state):
+def reset_self(self, game_state: dict):
     self.agent_coord_history = deque([], self.MAX_COORD_HISTORY)
     self.current_round = game_state["round"]
+    self.max_opponents_score = 0
 
 
-def is_new_round(self, game_state):
+def is_new_round(self, game_state: dict) -> bool:
     return game_state["round"] != self.current_round
 
 
@@ -69,13 +71,18 @@ def act(self, game_state: dict) -> str:
 
     Author: Luke Voss
     """
-    if self.is_new_round(game_state):  # TODO: Is "self" correct?
-        self.reset_self(game_state)
+    if is_new_round(self, game_state):  # TODO Correct?
+        reset_self(self, game_state)
 
     # Board History before agent position is normalized
     self.agent_coord_history.append(game_state['self'][3])
+    living_opponent_scores = [opponent[1] for opponent in game_state['others']]
+    max_living_opponent_score = max(living_opponent_scores)
+    self.max_opponents_score = max(
+        self.max_opponents_score, max_living_opponent_score)
 
-    feature_vector = state_to_features(game_state).to(self.device)
+    feature_vector = state_to_features(
+        game_state, self.max_opponents_score).to(self.device)
     next_action = self.agent.act(feature_vector, train=self.train)
 
     return next_action

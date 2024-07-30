@@ -177,6 +177,8 @@ class GameState:
         Filters and sorts bombs by their Manhattan distance to the agent's position, considering only those
         bombs that are either in the same row (y coordinate) or the same column (x coordinate) as the agent and 
         having a distance of 3 or less and not beeing blocked by walls, thus being a potential danger.
+
+        No need to handle Bomb available bool
         """
         dangerous_bombs = self._filter_dangerous_bombs(agent_coords)
 
@@ -190,19 +192,19 @@ class GameState:
         return sort_objects_by_distance(agent_coords, opponent_positions)
 
     def _process_player_action(self, action: str) -> bool:
-        name, score, bomb, agent_coords = self.self
+        name, score, is_bomb_possible, agent_coords = self.self
 
         if action in MOVEMENT:
             direction = MOVEMENT[action]
             new_coords = move_in_direction(agent_coords, direction)
             if self.is_valid_action(new_coords):
-                self.self = (name, score, bomb, new_coords)
+                self.self = (name, score, is_bomb_possible, new_coords)
             else:
                 return False
         elif action == "WAIT":
             pass
         elif action == "BOMB":
-            if bomb:
+            if is_bomb_possible:
                 self.bombs.append((agent_coords, s.BOMB_TIMER))
             else:
                 return False
@@ -215,12 +217,13 @@ class GameState:
         """
         Like in environment.py: self.update_explosions()
         """
-        self["explosion_map"] = np.clip(
-            self["explosion_map"] - 1, 0, None)
+        self.explosion_map = np.clip(
+            self.explosion_map - 1, 0, None)
 
     def _update_bombs(self):
         """
         Like in environment.py: self.update_explosions()
+        No need to handle Bomb available bool
         """
         new_bombs = []
         for bomb_coords, t in self.bombs:
@@ -235,8 +238,8 @@ class GameState:
         all_blast_coords = self._get_blast_effected_coords(
             bomb_coords, self)
         for blast_coords in all_blast_coords:
-            self['field'][blast_coords] = 0
-            self["explosion_map"][blast_coords] = s.EXPLOSION_TIMER
+            self.field[blast_coords] = 0
+            self.explosion_map[blast_coords] = s.EXPLOSION_TIMER
 
     def _evaluate_explosions(self):
         """
@@ -306,8 +309,7 @@ class GameState:
     def find_closest_crate(self, agent_coords: Tuple[int, int]) -> Tuple[int, int]:
         """ 
         Breadth First Search for efficiant search of closest crate 
-
-        TODO add opponents and bombs?
+        Ignores opponents and bombs
         """
         rows, cols = len(self.field), len(self.field[0])
         queue = deque([agent_coords])
@@ -336,7 +338,7 @@ class GameState:
         """
         return self._find_shortest_path(agent_coords, 'safety', place_bomb=True) != []
 
-    def get_stop_criterion_for_thing(self, thing: str) -> function:
+    def get_stop_criterion_for_thing(self, thing: str):  # TODO return value
         match thing:
             case 'coin':
                 return self._is_coin
@@ -351,7 +353,7 @@ class GameState:
         """
         Returns the shortest path to one of the given goal coordinates, currently bombs and opponents block movements
         with next game state estimation
-        # TODO put waiting into exploring?
+        TODO put waiting into exploring?
         """
         starting_game_state = copy.deepcopy(self)
         if place_bomb:
@@ -492,29 +494,6 @@ def sort_objects_by_distance(agent_coords: Tuple[int, int], objects: List[Tuple[
 
 def manhatten_distance(coords_1, coords_2) -> int:
     return abs(coords_1[0] - coords_2[0]) + abs(coords_1[1] - coords_2[1])
-
-
-def has_won_the_round(living_opponents, score_self: int, events: List[str], steps_of_round: int) -> bool:
-    """
-    Determine if the player has won the game based on the current game state.
-    TODO save opponents scores each round
-    """
-    if steps_of_round == s.MAX_STEPS:
-        return has_highest_score(living_opponents, score_self)
-    elif e.GOT_KILLED in events:
-        return False
-    elif e.KILLED_SELF in events:
-        return len(living_opponents) == 1 and has_highest_score(living_opponents, score_self)
-    raise ValueError("Invalid game state or undefined events")
-
-
-def has_highest_score(living_opponents, score_self: int) -> bool:
-    if living_opponents:
-        score_opponents = [opponent[1] for opponent in living_opponents]
-        return all(score_self > score for score in score_opponents)
-    else:
-        # TODO: How to see scores of killed opponents
-        return True
 
 
 def got_in_loop(agent_coords, agent_coord_history):
