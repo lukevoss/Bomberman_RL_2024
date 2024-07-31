@@ -331,6 +331,69 @@ class TestingGameState(unittest.TestCase):
         action_idx = state.get_action_idx_to_closest_thing('safety')
         self.assertEqual(action_idx, 1)
 
+    def test_get_danger_in_each_direction(self):
+        state = copy.deepcopy(self.state)
+
+        # One bomb one explosion
+        state.self = ('test_agent', 0, 1, (3, 3))
+        state.explosion_map[3, 4] = 1
+        state.bombs = [((5, 3), 3)]
+        danger = state.get_danger_in_each_direction((3, 3))
+        ground_truth_danger = [0, 1, 0.25, 0.25, 0.25]
+        assert_array_equal(danger, ground_truth_danger)
+
+        # Two bombs with different timers
+        state.bombs = [((5, 3), 2), ((3, 5), 0)]
+        state.explosion_map[3, 4] = 0
+        danger = state.get_danger_in_each_direction((3, 3))
+        ground_truth_danger = [1, 1, 0.5, 0.5, 1]
+        assert_array_equal(danger, ground_truth_danger)
+
+    def test_is_perfect_bomb_spot(self):
+        state = copy.deepcopy(self.state)
+
+        # Can destroy 4 crates
+        state.field[1, 2] = CRATE
+        state.field[1, 3] = CRATE
+        state.field[1, 4] = CRATE
+        state.field[2, 1] = CRATE
+        self.assertTrue(state.is_perfect_bomb_spot((1, 1)))
+
+        # Can only destroy 3 crates
+        self.assertFalse(state.is_perfect_bomb_spot((1, 5)))
+        state.field[2, 1] = FREE
+
+        # Opponent in deadend, can't move
+        state.others = [('opponent', 0, 1, (2, 1))]
+        self.assertTrue(state.is_perfect_bomb_spot((3, 1)))
+
+        # Opponent in deadend, can move
+        state.self = ('test_agent', 0, 1, (3, 3))
+        self.assertTrue(state.is_perfect_bomb_spot((3, 1)))
+
+        # Opponent not in deadend
+        state.field[1, 2] = FREE
+        self.assertFalse(state.is_perfect_bomb_spot((3, 1)))
+
+    def test_sort_and_filter_out_dangerous_bombs(self):
+        state = copy.deepcopy(self.state)
+
+        # Sort bombs with many bombs present
+        state.bombs = [((1, 2), 0), ((2, 2), 0), ((3, 3), 0),
+                       ((1, 4), 0), ((1, 1), 0)]
+        sorted_dangerous_bombs = state.sort_and_filter_out_dangerous_bombs(
+            (1, 1))
+        expected_bombs = [((1, 1), 0), ((1, 2), 0), ((1, 4), 0)]
+        self.assertEqual(sorted_dangerous_bombs, expected_bombs)
+
+        # Sort with no bombs
+        state.bombs = []
+        self.assertEqual(state.sort_and_filter_out_dangerous_bombs((1, 1)), [])
+
+        # Sort with bombs, but none dangerous
+        state.bombs = [((1, 1), 0), ((2, 2), 0), ((3, 3), 0)]
+        self.assertEqual(state.sort_and_filter_out_dangerous_bombs((5, 5)), [])
+
 
 """
 class TestingUtils(unittest.TestCase):
@@ -471,17 +534,6 @@ class TestingUtils(unittest.TestCase):
         self.assertEqual(sort_opponents_by_distance(
             agent_coords, single_opponent), single_opponent)
 
-    def test_sort_and_filter_out_dangerous_bombs(self):
-        bombs = [(0, 1), (1, 1), (2, 2), (0, 3), (0, 0)]
-        sorted_dangerous_bombs = sort_and_filter_out_dangerous_bombs(
-            (0, 0), bombs, self.field)
-        expected_bombs = [(0, 0), (0, 1), (0, 3)]
-        self.assertEqual(sorted_dangerous_bombs, expected_bombs)
-
-        self.assertEqual(sort_and_filter_out_dangerous_bombs(
-            (0, 0), [], self.field), [])
-        self.assertEqual(sort_and_filter_out_dangerous_bombs(
-            (3, 3), [((0, 0)), ((1, 1)), ((2, 2))], self.field), [])
 
     
 

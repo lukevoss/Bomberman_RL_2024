@@ -17,8 +17,17 @@ MOVEMENT = {
     "UP": (0, -1),
     "DOWN": (0, 1),
     "LEFT": (-1, 0),
-    "RIGHT": (1, 0),
+    "RIGHT": (1, 0)
 }
+ACTIONS_TO_MOVEMENT = {
+    "UP": (0, -1),
+    "DOWN": (0, 1),
+    "LEFT": (-1, 0),
+    "RIGHT": (1, 0),
+    "WAIT": (0, 0),
+    "BOMB": (0, 0)
+}
+
 
 UNSAFE_FIELD = 2
 CRATE = 1
@@ -46,7 +55,7 @@ class GameState:
 
     def next(self, action: str) -> Optional['GameState']:
         """
-        Advances the game state by one action performed by the player. 
+        Advances the game state by one action performed by the player.
         Returns None if action is invalid or agent dies
         """
         next_game_state = copy.deepcopy(self)
@@ -61,13 +70,13 @@ class GameState:
     def not_escaping_danger(self, self_action: str):
         return self_action == 'WAIT' or self_action == 'BOMB'
 
-    def is_escaping_danger(self, self_action: str, sorted_dangerous_bombs: List[Tuple[int, int]]):
+    def is_escaping_danger(self, self_action: str, sorted_dangerous_bombs: List[Tuple[Tuple[int, int], int]]):
         agent_coords = self.self[3]
         new_agents_coords = march_forward(agent_coords, self_action)
         if self.is_valid_movement(new_agents_coords):
             if sorted_dangerous_bombs:
                 closest_bomb = sorted_dangerous_bombs[0]
-                return increased_distance(agent_coords, new_agents_coords, closest_bomb)
+                return increased_distance(agent_coords, new_agents_coords, closest_bomb[0])
             else:
                 return True
         return False
@@ -175,21 +184,54 @@ class GameState:
     def sort_and_filter_out_dangerous_bombs(self, agent_coords: Tuple[int, int]) -> List[Tuple[int, int]]:
         """
         Filters and sorts bombs by their Manhattan distance to the agent's position, considering only those
-        bombs that are either in the same row (y coordinate) or the same column (x coordinate) as the agent and 
+        bombs that are either in the same row (y coordinate) or the same column (x coordinate) as the agent and
         having a distance of 3 or less and not beeing blocked by walls, thus being a potential danger.
 
         No need to handle Bomb available bool
         """
         dangerous_bombs = self._filter_dangerous_bombs(agent_coords)
 
-        dangerous_bombs = sort_objects_by_distance(
+        dangerous_bombs = self.sort_bombs_by_distance(
             agent_coords, dangerous_bombs)
 
         return dangerous_bombs
 
-    def sort_opponents(self, agent_coords: Tuple[int, int]) -> List[Tuple[int, int]]:
-        opponent_positions = {opponent[3] for opponent in self.others}
-        return sort_objects_by_distance(agent_coords, opponent_positions)
+    def sort_bombs_by_distance(self, agent_coords: Tuple[int, int], bombs: List[Tuple[Tuple[int, int], int]]) -> List[Tuple[Tuple[int, int], int]]:
+        """Sorts bombs by Manhattan distance to the agent."""
+        return sorted(bombs, key=lambda bomb: manhatten_distance(bomb[0], agent_coords))
+
+    def get_coins_sorted_by_distance(self, agent_coords: Tuple[int, int], coins: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+        """Sorts coins by Manhattan distance to the agent."""
+        return sorted(self.coins, key=lambda coin: manhatten_distance(coin, agent_coords))
+
+    def get_opponents_sorted_by_distance(self, agent_coords: Tuple[int, int]) -> List[Tuple[str, int, bool, Tuple[int, int]]]:
+        """Sorts one type of objects by Manhattan distance to the agent."""
+        return sorted(self.others, key=lambda opponent: manhatten_distance(opponent[3], agent_coords))
+
+    def find_closest_crate(self, agent_coords: Tuple[int, int]) -> Tuple[int, int]:
+        """
+        Breadth First Search for efficiant search of closest crate
+        Ignores opponents and bombs
+        """
+        rows, cols = len(self.field), len(self.field[0])
+        queue = deque([agent_coords])
+        visited = set(agent_coords)
+
+        while queue:
+            coords = queue.popleft()
+
+            if self.field[coords] == CRATE:
+                return coords
+
+            # Explore the four possible directions
+            for direction in MOVEMENT_DIRECTIONS:
+                next_coords = move_in_direction(coords, direction)
+                if (is_in_game_grid(next_coords, rows, cols) and
+                        next_coords not in visited):
+                    visited.add(next_coords)
+                    queue.append(next_coords)
+
+        return None
 
     def _process_player_action(self, action: str) -> bool:
         name, score, is_bomb_possible, agent_coords = self.self
@@ -275,7 +317,7 @@ class GameState:
     def _filter_dangerous_bombs(self, agent_coords: Tuple[int, int]) -> List[Tuple[int, int]]:
         """Filters bombs that are in the same row or column as the agent and within a distance of 3."""
         return [
-            bomb[0] for bomb in self.bombs
+            bomb for bomb in self.bombs
             if self._is_dangerous_bomb(agent_coords, bomb[0])
         ]
 
@@ -306,34 +348,9 @@ class GameState:
     def _is_in_explosion(self, coords: Tuple[int, int]) -> bool:
         return self.explosion_map[coords] != 0
 
-    def find_closest_crate(self, agent_coords: Tuple[int, int]) -> Tuple[int, int]:
-        """ 
-        Breadth First Search for efficiant search of closest crate 
-        Ignores opponents and bombs
-        """
-        rows, cols = len(self.field), len(self.field[0])
-        queue = deque([agent_coords])
-        visited = set(agent_coords)
-
-        while queue:
-            coords = queue.popleft()
-
-            if self.field[coords] == CRATE:
-                return coords
-
-            # Explore the four possible directions
-            for direction in MOVEMENT_DIRECTIONS:
-                next_coords = move_in_direction(coords, direction)
-                if (is_in_game_grid(next_coords, rows, cols) and
-                        next_coords not in visited):
-                    visited.add(next_coords)
-                    queue.append(next_coords)
-
-        return None
-
     def _path_to_safety_exists(self, agent_coords: Tuple[int, int]) -> bool:
         """
-        Gives if there exist a path to safety based on the given agents coordinates and the simulated bombs field. 
+        Gives if there exist a path to safety based on the given agents coordinates and the simulated bombs field.
         Based on next game state estimation
         """
         shortest_path = self._find_shortest_path(
@@ -392,23 +409,25 @@ class GameState:
 
     def _would_surely_kill_opponent(self, bomb_blast_coords):
         for opponent in self.others:
-            if self._opponent_in_deadend(opponent) and self._potentially_destroying_opponent(bomb_blast_coords, [opponent]):
+            if self._opponent_in_deadend(opponent) and self._potentially_destroying_opponent(bomb_blast_coords):
                 return True
         return False
 
     def _opponent_in_deadend(self, opponent):
         """
-        Returns if opponent is in deadend (e.g only has two availabe opposite directions that 
+        Returns if opponent is in deadend (e.g only has two availabe opposite directions that
         he can walk and one of them leads into a deadend)
         """
         opponent_coord = opponent[3]
         possible_directions = self._get_possible_directions(opponent_coord)
-        if len(possible_directions) <= 2 and self._are_opposite_directions(possible_directions):
+        if len(possible_directions) < 2:
+            return True
+        elif len(possible_directions) == 2 and are_opposite_directions(possible_directions):
             for direction in possible_directions:
                 new_coords = opponent_coord
-                for i in range(0, s.BOMB_POWER):
+                for _ in range(0, s.BOMB_POWER):
                     new_coords = move_in_direction(new_coords, direction)
-                    if self._is_deadend(new_coords):
+                    if self.is_valid_movement(new_coords) and self._is_deadend(new_coords):
                         return True
         return False
 
@@ -423,18 +442,10 @@ class GameState:
     def _get_possible_directions(self, agent_coords):
         possible_directions = []
         for direction in MOVEMENT_DIRECTIONS:
-            new_coords = march_forward(agent_coords, direction)
+            new_coords = move_in_direction(agent_coords, direction)
             if self.is_valid_movement(new_coords):
                 possible_directions.append(direction)
         return possible_directions
-
-    def _are_opposite_directions(directions: List[Tuple[int, int]]) -> bool:
-        if len(directions) == 2:
-            direction_1 = directions[0]
-            direction_2 = directions[1]
-            return (direction_1[0] + direction_2[0] == 0 and
-                    direction_1[1] + direction_2[1] == 0)
-        return False
 
 
 def move_in_direction(coords: Tuple[int, int], direction: Tuple[int, int]) -> Tuple[int, int]:
@@ -443,26 +454,24 @@ def move_in_direction(coords: Tuple[int, int], direction: Tuple[int, int]) -> Tu
 
 def march_forward(coords, action: str) -> Tuple[int, int]:
     x, y = coords
-    # Forward in direction.
-    match action:
-        case 'LEFT':
-            x -= 1
-        case 'RIGHT':
-            x += 1
-        case 'UP':
-            y -= 1
-        case 'DOWN':
-            y += 1
-    return (x, y)
+    if action in ACTIONS_TO_MOVEMENT:
+        dx, dy = ACTIONS_TO_MOVEMENT[action]
+        return (x + dx, y + dy)
+    else:
+        raise ValueError(f"Unrecognized action: {action}")
 
 
 def is_in_game_grid(coords: Tuple[int, int]) -> bool:
     return 0 <= coords[0] < s.ROWS and 0 <= coords[1] < s.COLS
 
 
-def sort_objects_by_distance(agent_coords: Tuple[int, int], objects: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
-    """Sorts one type of objects by Manhattan distance to the agent."""
-    return sorted(objects, key=lambda object: manhatten_distance(object, agent_coords))
+def are_opposite_directions(directions: List[Tuple[int, int]]) -> bool:
+    if len(directions) == 2:
+        direction_1 = directions[0]
+        direction_2 = directions[1]
+        return (direction_1[0] + direction_2[0] == 0 and
+                direction_1[1] + direction_2[1] == 0)
+    return False
 
 
 def manhatten_distance(coords_1, coords_2) -> int:
@@ -475,13 +484,11 @@ def got_in_loop(agent_coords, agent_coord_history):
 
 
 def decreased_distance(old_coords, new_coords, object_coords):
-    return (manhatten_distance(new_coords, object_coords)
-            < manhatten_distance(old_coords, object_coords))
+    return (manhatten_distance(new_coords, object_coords) < manhatten_distance(old_coords, object_coords))
 
 
 def increased_distance(old_coords, new_coords, object_coords):
-    return (manhatten_distance(new_coords, object_coords)
-            > manhatten_distance(old_coords, object_coords))
+    return (manhatten_distance(new_coords, object_coords) > manhatten_distance(old_coords, object_coords))
 
 
 def has_destroyed_target(events):
@@ -531,5 +538,4 @@ def is_opponent_in_blast_range(game_state: GameState, potential_bomb_coords: Tup
 
 def is_out_of_danger(game_state: GameState, new_coords: Tuple[int, int]) -> bool:
     """Returns true if the player is out of danger. Stop critereon version if is_save_step"""
-    return (game_state.is_valid_movement(new_coords) and
-            not game_state.is_dangerous(new_coords))
+    return (game_state.is_valid_movement(new_coords) and not game_state.is_dangerous(new_coords))
