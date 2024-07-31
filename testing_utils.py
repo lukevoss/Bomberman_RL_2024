@@ -83,10 +83,253 @@ class TestingGameState(unittest.TestCase):
         next_game_state = old_game_state.next("WAIT")
 
         blast_idx = [(3, 1), (3, 2), (3, 3), (3, 4), (3, 5)]
-        old_game_state.explosion_map[blast_idx] = 1
+        for x, y in blast_idx:
+            old_game_state.explosion_map[x][y] = 1
         assert_array_equal(next_game_state.field, self.state.field)
         assert_array_equal(next_game_state.explosion_map,
                            old_game_state.explosion_map)
+
+        # Agent walks into explosion
+        old_game_state.self = ('test_agent', 0, 1, (2, 1))
+        next_game_state = old_game_state.next("RIGHT")
+        self.assertIsNone(next_game_state)
+
+        old_game_state = copy.deepcopy(self.state)
+
+        # player dies
+        old_game_state.bombs = [((1, 3), 0)]
+        next_game_state = old_game_state.next("WAIT")
+        self.assertIsNone(next_game_state)
+
+        # player escapes
+        next_game_state = old_game_state.next("RIGHT")
+        blast_idx = [(1, 1), (1, 2), (1, 3), (1, 4), (1, 5),
+                     (1, 6), (2, 3), (3, 3), (4, 3)]
+        for x, y in blast_idx:
+            old_game_state.explosion_map[x, y] = 1
+        assert_array_equal(next_game_state.explosion_map,
+                           old_game_state.explosion_map)
+        self.assertEqual(next_game_state.self[3], (2, 1))
+
+        old_game_state.explosion_map = self.state.explosion_map
+
+        # Bomb timer one less
+        old_game_state.bombs = [((1, 1), 3)]
+        next_game_state = old_game_state.next("WAIT")
+        bomb = next_game_state.bombs[0]
+        self.assertEqual(bomb[1], 2)
+
+    def test_not_escaping_danger(self):
+        self.assertTrue(self.state.not_escaping_danger('WAIT'))
+        self.assertTrue(self.state.not_escaping_danger('BOMB'))
+        self.assertFalse(self.state.not_escaping_danger('LEFT'))
+
+    def test_is_escaping_danger(self):
+        state = copy.deepcopy(self.state)
+        state.bombs = [((1, 5), 3)]
+        state.self = ('test_agent', 0, 1, (1, 3))
+        agent_coords = state.self[3]
+        sorted_dangerous_bombs = state.sort_and_filter_out_dangerous_bombs(
+            agent_coords)
+
+        # Out of bomb reach
+        self.assertTrue(state.is_escaping_danger(
+            "RIGHT", sorted_dangerous_bombs))
+        # Closer to Bomb
+        self.assertFalse(state.is_escaping_danger(
+            "DOWN", sorted_dangerous_bombs))
+        # Further from bomb reach
+        self.assertTrue(state.is_escaping_danger(
+            'UP', sorted_dangerous_bombs))
+        # Invalid action
+        self.assertFalse(state.is_escaping_danger(
+            'LEFT', sorted_dangerous_bombs))
+
+    def test_has_escaped_danger(self):
+        state = copy.deepcopy(self.state)
+        state.bombs = [((1, 5), 3)]
+        state.self = ('test_agent', 0, 1, (1, 3))
+        # Escaped behind wall
+        self.assertTrue(state.has_escaped_danger('RIGHT'))
+        # Invalid action
+        self.assertFalse(state.has_escaped_danger('LEFT'))
+        # Not Escaped
+        self.assertFalse(state.has_escaped_danger('WAIT'))
+
+        # Run into another danger
+        state.explosion_map[2][3] = 1
+        self.assertFalse(state.has_escaped_danger('RIGHT'))
+        state.explosion_map[2][3] = 0
+        # Ran out of Reach
+        state.self = ('test_agent', 0, 1, (1, 2))
+        self.assertTrue(state.has_escaped_danger('UP'))
+
+    def test_is_valid_movement(self):
+        state = copy.deepcopy(self.state)
+
+        self.assertTrue(state.is_valid_movement((1, 1)))
+        self.assertFalse(state.is_valid_movement((0, 0)))
+        self.assertFalse(state.is_valid_movement((2, 2)))
+
+        # Bomb on field
+        state.bombs = [((1, 1), 3)]
+        self.assertFalse(state.is_valid_movement((1, 1)))
+
+        # Opponent on field
+        state.others = [('other1', 0, 1, (1, 2))]
+        self.assertFalse(state.is_valid_movement((1, 2)))
+
+    def test_is_dangerous(self):
+        # Setup for the test
+        state = copy.deepcopy(self.state)
+        state.bombs = [((1, 2), 2)]
+        state.explosion_map[3, 3] = 1
+
+        # Test when step is in reach of bomb
+        self.assertTrue(state.is_dangerous((1, 1)))
+
+        # Test step out of reach of bomb
+        self.assertFalse(state.is_dangerous((2, 1)))
+
+        # Test when step on explosion
+        self.assertTrue(state.is_dangerous((3, 3)))
+
+    def test_waited_necessary(self):
+        state = copy.deepcopy(self.state)
+        state.bombs = [((2, 1), 2)]
+        state.self = ('test_agent', 0, 1, (1, 2))
+        state.explosion_map[1, 3] = 1
+
+        # Waiting because of bomb and explosion
+        self.assertTrue(state.waited_necessarily())
+        state.explosion_map[1, 3] = 0
+
+        # No need to Wait
+        self.assertFalse(state.waited_necessarily())
+
+        # Waiting because of only bombs
+        state.field[1, 3] = 1
+        self.assertTrue(state.waited_necessarily())
+
+    def test_is_save_step(self):
+        state = copy.deepcopy(self.state)
+        state.bombs = [((1, 3), 1)]
+        state.explosion_map[2][1] = 1
+
+        # In reach of Bomb
+        self.assertFalse(state.is_save_step((1, 1)))
+
+        # On Explosion
+        self.assertFalse(state.is_save_step((2, 1)))
+
+        # Save Step
+        self.assertTrue(state.is_save_step((5, 1)))
+
+        # Invalid step
+        self.assertFalse(state.is_save_step((0, 0)))
+
+    def test_simulate_own_bomb(self):
+        state = copy.deepcopy(self.state)
+        state.field[3, 2] = CRATE
+        state.self = ('test_agent', 0, 1, (3, 3))
+
+        # Destroyes Crate, can reach safety
+        can_reach_safety, is_effective = state.simulate_own_bomb()
+        self.assertTrue(can_reach_safety)
+        self.assertTrue(is_effective)
+
+        # Destroyes Opponent, no crate, can reach safety
+        state.field[3, 2] = FREE
+        state.others = [('opponent1', 3, 1, (3, 2))]
+        can_reach_safety, is_effective = state.simulate_own_bomb()
+        self.assertTrue(can_reach_safety)
+        self.assertTrue(is_effective)
+
+        # Destroyes nothing, can reach safety
+        state.others = []
+        can_reach_safety, is_effective = state.simulate_own_bomb()
+        self.assertTrue(can_reach_safety)
+        self.assertFalse(is_effective)
+
+        # Destroyes crate, can't reach safety
+        state.self = ('test_agent', 0, 1, (1, 1))
+        state.field[2, 1] = CRATE
+        state.field[1, 2] = CRATE
+        can_reach_safety, is_effective = state.simulate_own_bomb()
+        self.assertFalse(can_reach_safety)
+        self.assertTrue(is_effective)
+
+    def test_get_action_idx_to_closest_thing(self):
+        state = copy.deepcopy(self.state)
+
+        ###########  Coin  ############
+        # Two coins, should be DOWN, so 1
+        state.self = ('test_agent', 0, 1, (3, 3))
+        state.coins = [(3, 4), (7, 7)]
+        action_idx = state.get_action_idx_to_closest_thing('coin')
+        self.assertEqual(action_idx, 1)
+
+        # Two coin, same distance
+        state.coins = [(3, 4), (4, 3)]
+        action_idx = state.get_action_idx_to_closest_thing('coin')
+        self.assertTrue(action_idx == 1 or action_idx == 3)
+
+        # One coin around corner
+        state.coins = [(5, 4)]
+        action_idx = state.get_action_idx_to_closest_thing('coin')
+        self.assertEqual(action_idx, 3)
+
+        # Two coins one close, but blocked by crates, one free
+        state.coins = [(3, 13), (6, 3)]
+        state.field[5, 3] = CRATE
+        state.field[7, 3] = CRATE
+        action_idx = state.get_action_idx_to_closest_thing('coin')
+        self.assertEqual(action_idx, 1)
+
+        # No way exists
+        state.coins = [(6, 3)]
+        action_idx = state.get_action_idx_to_closest_thing('coin')
+        self.assertEqual(action_idx, 4)
+
+        # Walk around crates
+        state = copy.deepcopy(self.state)
+        state.self = ('test_agent', 0, 1, (3, 3))
+        state.coins = [(5, 3)]
+        state.field[4, 3] = CRATE
+        state.field[6, 3] = CRATE
+        state.field[5, 4] = CRATE
+        action_idx = state.get_action_idx_to_closest_thing('coin')
+        self.assertEqual(action_idx, 0)
+
+        ###########  Crates  ############
+        state = copy.deepcopy(self.state)
+
+        # One Crate
+        state.field[1, 3] = 1
+        action_idx = state.get_action_idx_to_closest_thing('crate')
+        self.assertEqual(action_idx, 1)
+
+        ###########  Opponents  ############
+        state = copy.deepcopy(self.state)
+
+        # Opponent in blast range
+        state.others = [('opponent', 0, 1, (1, 3))]
+        action_idx = state.get_action_idx_to_closest_thing('opponent')
+        self.assertEqual(action_idx, 4)
+
+        # Opponent not in blast range
+        state.others = [('opponent', 0, 1, (1, 7))]
+        action_idx = state.get_action_idx_to_closest_thing('opponent')
+        self.assertEqual(action_idx, 1)
+
+        ###########  Savety  ############
+        state = copy.deepcopy(self.state)
+
+        # Way to safety is towards bomb
+        state.bombs = [((1, 4), 3)]
+        state.field[2, 1] = CRATE
+        action_idx = state.get_action_idx_to_closest_thing('safety')
+        self.assertEqual(action_idx, 1)
 
 
 """
@@ -240,23 +483,7 @@ class TestingUtils(unittest.TestCase):
         self.assertEqual(sort_and_filter_out_dangerous_bombs(
             (3, 3), [((0, 0)), ((1, 1)), ((2, 2))], self.field), [])
 
-    def test_is_dangerous(self):
-        # Setup for the test
-        # 1 represents danger at (1, 1)
-        explosion_map = np.array([[0, 0], [0, 1]])
-        dangerous_bombs = [(0, 1), (1, 0)]
-
-        # Test when agent is on a dangerous position
-        self.assertTrue(is_dangerous((1, 1), explosion_map, []))
-
-        # Test when there are dangerous bombs listed
-        self.assertTrue(is_dangerous((0, 0), explosion_map, dangerous_bombs))
-
-        # Test when agent is not on a dangerous position and no bombs are listed
-        self.assertFalse(is_dangerous((0, 0), explosion_map, []))
-
-        # Edge case: testing boundary of the explosion_map
-        self.assertFalse(is_dangerous((1, 0), explosion_map, []))
+    
 
     def test_has_highest_score(self):
         self.assertTrue(has_highest_score(self.opponents, 5))
@@ -281,89 +508,11 @@ class TestingUtils(unittest.TestCase):
         with self.assertRaises(ValueError):
             has_won_the_round(single_opponent, 2, [], 50)
 
-    def test_not_escaping_danger(self):
-        self.assertTrue(not_escaping_danger('WAIT'))
-        self.assertTrue(not_escaping_danger('BOMB'))
-        self.assertFalse(not_escaping_danger('LEFT'))
+    
 
-    def test_is_escaping_danger(self):
-        sorted_dangerous_bombs = [(1, 3)]
-        opponents = []
-        # Out of bomb reach
-        self.assertTrue(is_escaping_danger(
-            (1, 1), 'RIGHT', self.game_field, opponents, sorted_dangerous_bombs))
-        # Closer to Bomb
-        self.assertFalse(is_escaping_danger(
-            (1, 1), 'DOWN', self.game_field, opponents, sorted_dangerous_bombs))
-        # Further from bomb reach
-        self.assertTrue(is_escaping_danger(
-            (1, 2), 'UP', self.game_field, opponents, sorted_dangerous_bombs))
-        # Invalid action
-        self.assertFalse(is_escaping_danger(
-            (1, 1), 'LEFT', self.game_field, opponents, sorted_dangerous_bombs))
+    
 
-    def test_has_escaped_danger(self):
-        sorted_dangerous_bombs = [(1, 3)]
-        opponents = []
-        # Escaped behind wall
-        self.assertTrue(has_escaped_danger((1, 1), 'RIGHT', self.game_field, opponents,
-                        sorted_dangerous_bombs, self.explosion_map))
-        # Invalid action
-        self.assertFalse(has_escaped_danger((1, 1), 'LEFT', self.game_field, opponents,
-                                            sorted_dangerous_bombs, self.explosion_map))
-        # Not Escaped
-        self.assertFalse(has_escaped_danger(
-            (1, 1), 'WAIT', self.game_field, opponents, sorted_dangerous_bombs, self.explosion_map))
-
-        # Run into another danger
-        self.explosion_map[2][1] = 1
-        self.assertFalse(has_escaped_danger(
-            (1, 1), 'RIGHT', self.game_field, opponents, sorted_dangerous_bombs, self.explosion_map))
-        self.explosion_map[2][1] = 0
-        # Ran out of Reach
-        self.assertTrue(has_escaped_danger(
-            (1, 2), 'UP', self.game_field, opponents, [(1, 5)], self.explosion_map))
-
-    def test_is_valid_action(self):
-        opponents = []
-        bombs = []
-        self.assertTrue(is_valid_action(
-            (1, 1), self.game_field, opponents, bombs))
-        self.assertFalse(is_valid_action(
-            (0, 0), self.game_field, opponents, bombs))
-        self.assertFalse(is_valid_action(
-            (5, 5), self.game_field, opponents, bombs))
-
-        # Bomb on field
-        bombs = [(1, 1)]
-        self.assertFalse(is_valid_action(
-            (1, 1), self.game_field, opponents, bombs))
-
-        opponents = [(1, 1)]
-        bombs = []
-        self.assertFalse(is_valid_action(
-            (1, 1), self.game_field, opponents, bombs))
-
-    def test_is_save_step(self):
-        sorted_dangerous_bombs = [(1, 3)]
-        self.explosion_map[2][1] = 1
-        opponents = []
-
-        # In reach of Bomb
-        self.assertFalse(is_save_step(
-            (1, 1), self.game_field, opponents, self.explosion_map, sorted_dangerous_bombs))
-
-        # On Explosion
-        self.assertFalse(is_save_step(
-            (2, 1), self.game_field, opponents, self.explosion_map, sorted_dangerous_bombs))
-
-        # Save Step
-        self.assertTrue(is_save_step(
-            (5, 1), self.game_field, opponents, self.explosion_map, sorted_dangerous_bombs))
-
-        # Invalid step
-        self.assertFalse(is_save_step(
-            (0, 0), self.game_field, opponents, self.explosion_map, sorted_dangerous_bombs))
+    
 
     def test_increased_distance(self):
         self.assertFalse(increased_distance((0, 1), (0, 0), (0, 0)))
@@ -382,33 +531,7 @@ class TestingUtils(unittest.TestCase):
         self.assertFalse(got_in_loop((0, 1), agent_coord_history))
         self.assertFalse(got_in_loop((1, 0), agent_coord_history))
 
-    def test_waited_necessary(self):
-        field = np.array([
-            [-1, -1, -1, -1, -1],
-            [-1,  1,  0,  0, -1],
-            [-1,  0, -1,  0, -1],
-            [-1,  0,  0,  0, -1],
-            [-1, -1, -1, -1, -1]
-        ])
-        explosion_map = np.array([
-            [-1, -1, -1, -1, -1],
-            [-1,  0,  0,  1, -1],
-            [-1,  0,  0,  0, -1],
-            [-1,  0,  0,  0, -1],
-            [-1, -1, -1, -1, -1]
-        ])
-        bombs = [(3, 3)]
-        opponents = []
-        # Waiting because of bomb
-        self.assertTrue(waited_necessarily(
-            (2, 1), field, opponents, explosion_map, bombs))
-        # Waiting because of explosion
-        self.assertTrue(waited_necessarily(
-            (1, 2), field, opponents, explosion_map, bombs))
-        # No need to Wait
-        bombs = []
-        self.assertFalse(waited_necessarily(
-            (2, 1), field, opponents, explosion_map, bombs))
+    
 
     def test_find_closest_create(self):
         # Test Crate Directly Adjacent
@@ -538,35 +661,7 @@ class TestingUtils(unittest.TestCase):
         self.assertFalse(potentially_destroying_opponent(
             bomb_simulated_field, opponents))
 
-    def test_simulate_bomb(self):
-        opponents = [('opponent1', 3, 1, (1, 2))]
-        bombs = []
-        # Destroyes Crate, can reach safety
-        can_reach_safety, is_effective = simulate_bomb(
-            (3, 3), self.small_game_field, opponents, bombs)
-        self.assertTrue(can_reach_safety)
-        self.assertTrue(is_effective)
-
-        # Destroyes Opponent, no crate, can reach safety
-        opponents = [('opponent1', 3, 1, (2, 3))]
-        can_reach_safety, is_effective = simulate_bomb(
-            (2, 3), self.small_game_field, opponents, bombs)
-        self.assertTrue(can_reach_safety)
-        self.assertTrue(is_effective)
-
-        # Destroyes nothing, can reach safety
-        opponents = []
-        can_reach_safety, is_effective = simulate_bomb(
-            (2, 3), self.small_game_field, opponents, bombs)
-        self.assertTrue(can_reach_safety)
-        self.assertFalse(is_effective)
-
-        # Destroyes crate, can't reach safety
-        opponents = []
-        can_reach_safety, is_effective = simulate_bomb(
-            (1, 3), self.small_game_field, opponents, bombs)
-        self.assertFalse(can_reach_safety)
-        self.assertTrue(is_effective)
+    
 """
 
 if __name__ == '__main__':

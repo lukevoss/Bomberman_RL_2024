@@ -41,7 +41,8 @@ def add_own_events(old_game_state, self_action, events_src, end_of_round, agent_
 
     elif self_action == 'BOMB':
         if is_bomb_possible:
-            can_reach_safety, is_effective = state.simulate_bomb(agent_coords)
+            can_reach_safety, is_effective = state.simulate_own_bomb(
+                agent_coords)
             if not can_reach_safety:
                 events.append(own_e.DUMB_BOMB_DROPPED)
             elif is_effective:

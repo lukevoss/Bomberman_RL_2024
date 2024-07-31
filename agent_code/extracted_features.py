@@ -51,7 +51,6 @@ Board is abstracted as a boolean vector of size 20 with each feature as followin
         - sometimes placing a bomb before running out of danger can trap a opponent between two bombs
 
 
-# TODO Controll correct action_idx
 Author: Luke Voss
 """
 import numpy as np
@@ -87,7 +86,7 @@ def state_to_features(game_state: dict, max_opponent_score: int) -> np.array:
     feature_vector[20:25] = state.get_danger_in_each_direction(agent_coords)
 
     # Could we survive a placed bomb?
-    can_reach_safety, _ = state.simulate_bomb(agent_coords)
+    can_reach_safety, _ = state.simulate_own_bomb(agent_coords)
     feature_vector[25] = can_reach_safety
 
     # Can we place a bomb?
