@@ -1,4 +1,4 @@
-from utils import *
+from agent_code.utils import *
 import events as e
 import own_events as own_e
 
@@ -41,8 +41,7 @@ def add_own_events(old_game_state, self_action, events_src, end_of_round, agent_
 
     elif self_action == 'BOMB':
         if is_bomb_possible:
-            can_reach_safety, is_effective = state.simulate_own_bomb(
-                agent_coords)
+            can_reach_safety, is_effective = state.simulate_own_bomb()
             if not can_reach_safety:
                 events.append(own_e.DUMB_BOMB_DROPPED)
             elif is_effective:
@@ -51,12 +50,13 @@ def add_own_events(old_game_state, self_action, events_src, end_of_round, agent_
             events.append(own_e.DUMB_BOMB_DROPPED)
 
     else:
-        if got_in_loop(agent_coords, agent_coord_history):
+        if got_in_loop(agent_coords, self_action, agent_coord_history):
             events.append(own_e.GOT_IN_LOOP)
 
         new_agents_coords = march_forward(agent_coords, self_action)
         if sorted_opponents:
-            closest_opponent_coords = sorted_opponents[0]
+            closest_opponent = sorted_opponents[0]
+            closest_opponent_coords = closest_opponent[3]
 
             if decreased_distance(agent_coords, new_agents_coords, closest_opponent_coords):
                 events.append(own_e.CLOSER_TO_PLAYERS)
@@ -88,10 +88,10 @@ def add_own_events(old_game_state, self_action, events_src, end_of_round, agent_
 
     if e.CRATE_DESTROYED in events:
         number_of_crates_destroyed = events.count(e.CRATE_DESTROYED)
-        if number_of_crates_destroyed > 2:
-            events.append(own_e.BOMBED_3_TO_5_CRATES)
-        elif number_of_crates_destroyed > 5:
+        if number_of_crates_destroyed > 5:
             events.append(own_e.BOMBED_5_PLUS_CRATES)
+        elif number_of_crates_destroyed > 2:
+            events.append(own_e.BOMBED_3_TO_5_CRATES)
         else:
             events.append(own_e.BOMBED_1_TO_2_CRATES)
 

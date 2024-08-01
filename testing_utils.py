@@ -509,9 +509,9 @@ class TestingUtils(unittest.TestCase):
     def test_got_in_loop(self):
         agent_coord_history = deque(
             [(0, 0), (0, 1), (0, 0), (0, 1), (0, 0), (1, 0)], 6)
-        self.assertTrue(got_in_loop((0, 0), agent_coord_history))
-        self.assertFalse(got_in_loop((0, 1), agent_coord_history))
-        self.assertFalse(got_in_loop((1, 0), agent_coord_history))
+        self.assertTrue(got_in_loop((1, 0), "LEFT", agent_coord_history))
+        self.assertFalse(got_in_loop((0, 0), "RIGHT", agent_coord_history))
+        self.assertFalse(got_in_loop((0, 0), "DOWN", agent_coord_history))
 
     def test_has_destroyed_target(self):
         events = ['BOMB_EXPLODED', 'KILLED_OPPONENT']

@@ -510,8 +510,9 @@ def manhatten_distance(coords_1, coords_2) -> int:
     return abs(coords_1[0] - coords_2[0]) + abs(coords_1[1] - coords_2[1])
 
 
-def got_in_loop(agent_coords, agent_coord_history):
-    loop_count = agent_coord_history.count(agent_coords)
+def got_in_loop(agent_coords, action: str, agent_coord_history):
+    new_coords = march_forward(agent_coords, action)
+    loop_count = agent_coord_history.count(new_coords)
     return loop_count > 2
 
 
