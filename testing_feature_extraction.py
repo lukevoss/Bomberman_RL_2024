@@ -23,7 +23,7 @@ class TestingFeatureExtraction(unittest.TestCase):
 
     def test_empty_state(self):
         feature_vector = state_to_features(
-            self.game_state, max_opponent_score=1)
+            self.game_state, max_opponents_score=1)
         ground_truth = torch.zeros(30)
         ground_truth[20] = 1
         ground_truth[22] = 1
@@ -40,7 +40,7 @@ class TestingFeatureExtraction(unittest.TestCase):
         state["self"] = ('test_agent', 4, 0, (1, 1))
 
         feature_vector = state_to_features(
-            state, max_opponent_score=0)
+            state, max_opponents_score=0)
         ground_truth = torch.zeros(30)
         ground_truth[1] = 1
         ground_truth[1+5] = 1

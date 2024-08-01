@@ -14,7 +14,7 @@ PPO_EPOCHS_PER_EVALUATION = 8
 
 
 class PPOAgent:
-    def __init__(self, pretrained_model=None, input_feature_size=20, hidden_size=256, network_type='LSTM', device='cuda', train=True):
+    def __init__(self, pretrained_model=None, input_feature_size=30, hidden_size=256, network_type='LSTM', device='cuda', train=True):
         self.device = device
         self.model = self._initialize_model(
             pretrained_model, input_feature_size, hidden_size, network_type)
@@ -37,8 +37,7 @@ class PPOAgent:
         if pretrained_model:
             model_path = os.path.join('./models', pretrained_model)
             if not os.path.isfile(model_path):
-                raise FileNotFoundError(f"Pretrained model at 
-                                        {model_path} not found.")
+                raise FileNotFoundError(f"Pretrained model at {model_path} not found.")
             return self._load_model(model_path, input_feature_size, hidden_size, num_outputs, network_type)
 
         return self._create_new_model(input_feature_size, hidden_size, num_outputs, network_type)
@@ -62,7 +61,6 @@ class PPOAgent:
         else:
             raise ValueError(f"Unsupported network type: {network_type}")
 
-    
     @staticmethod
     def compute_gae(next_value, rewards, masks, values, gamma=0.95, tau=0.95):
         """
@@ -86,8 +84,7 @@ class PPOAgent:
         gae = 0
         returns = []
         for step in reversed(range(len(rewards))):
-            delta = rewards[step] + gamma * \
-                values[step + 1] * masks[step] - values[step]
+            delta = rewards[step] + gamma * values[step + 1] * masks[step] - values[step]
             gae = delta + gamma * tau * masks[step] * gae
             returns.insert(0, gae + values[step])
         return returns
@@ -139,7 +136,6 @@ class PPOAgent:
 
         return mean_loss
 
-
     @staticmethod
     def _generate_batches(mini_batch_size, states, actions, log_probs, returns, advantage):
         """
@@ -167,8 +163,8 @@ class PPOAgent:
             rand_ids = np.random.randint(0, batch_size, mini_batch_size)
             yield states[rand_ids, :], actions[rand_ids, :], log_probs[rand_ids, :], returns[rand_ids, :], advantage[rand_ids, :]
 
-    def act(self, feature_vector, train = True):
-        dist, self.value = self.agent.model(feature_vector)
+    def act(self, feature_vector):
+        dist, self.value = self.model(feature_vector)
 
         if self.train:
             # Exploration: Sample from Action Distribution
@@ -178,13 +174,14 @@ class PPOAgent:
             # Exploitation: Get Action with higest probability
             idx_action = dist.probs.argmax()  # TODO this correct?
         return ACTIONS[idx_action]
-    
-    def training_step(self, old_feature_state, new_feature_state, action_took:str, reward:float, is_terminal:bool):
+
+    def training_step(self, old_feature_state, new_feature_state, action_took: str, reward: float, is_terminal: bool):
         self.states.append(old_feature_state.to(self.device))
         idx_action = ACTIONS.index(action_took)
         self.actions.append(idx_action)
         self.rewards.append(reward)
         self.masks.append(1 - is_terminal)
+        self.round_rewards += reward
 
         self.values.append(self.value)
         self.log_probs.append(self.action_logprob.unsqueeze(0))
@@ -194,27 +191,28 @@ class PPOAgent:
             if is_terminal:
                 next_value = 0  # Next value doesn't exist
             else:
-                next_value = self.model(new_feature_state)
+                _, next_value = self.model(new_feature_state)
             returns = self.compute_gae(next_value, self.rewards,
-                                self.masks, self.values)
+                                       self.masks, self.values)
 
             returns = torch.stack(returns).detach()
             log_probs = torch.stack(self.log_probs).detach()
             values = torch.stack(self.values).detach()
             states = torch.stack(self.states)
-            actions = torch.stack(self.actions)
+            actions = torch.tensor(self.actions, device=self.device).unsqueeze(1)
             advantages = returns - values
 
             # Update step of PPO algorithm
             if states.size(0) > 0:
-                loss = self.update(self, PPO_EPOCHS_PER_EVALUATION, MINI_BATCH_SIZE,
-                                states, actions, log_probs, returns, advantages)
+                loss = self.update(PPO_EPOCHS_PER_EVALUATION, MINI_BATCH_SIZE,
+                                   states, actions, log_probs, returns, advantages)
                 self.loss_sum += loss
                 self.n_updates += 1
 
             if is_terminal:
                 print(' Total rewards of {}, Loss: {}'.format(
                     self.round_rewards, self.loss_sum/self.n_updates))
+                self.round_rewards = 0
 
             self.states = []
             self.actions = []
@@ -223,14 +221,8 @@ class PPOAgent:
             self.masks = []
             self.log_probs = []
 
-        self.round_rewards = 0
-        return loss
-    
+            #return loss
+
     def save_model(self, model_name="ppo_model"):
         model_path = os.path.join("./models", model_name + ".pt")
         torch.save(self.model.state_dict(), model_path)
-
-    
-
-
-

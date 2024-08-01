@@ -12,8 +12,7 @@ from typing import List
 import events as e
 import own_events as own_e
 from agent_code.feature_extraction import state_to_features
-from ppo import ACTIONS
-from add_own_events import add_own_events
+from agent_code.add_own_events import add_own_events
 
 
 # Hyper parameters:
@@ -27,6 +26,7 @@ def setup_training(self):
     Initialise self for training purpose.
     This function is called after `setup` in callbacks.py.
     """
+
     pass
 
 
@@ -45,24 +45,25 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     Author: Luke Voss
     """
     # Hand out self shaped events
-    events = add_own_events(self, old_game_state, self_action, events,
+    events = add_own_events(old_game_state, 
+                            self_action,
+                            events,
                             end_of_round=False,
                             agent_coord_history=self.agent_coord_history,
                             max_opponents_score=self.max_opponents_score)
 
     # Log Events
-    self.logger.debug(f'Encountered game event(s) {", ".join(
-        map(repr, events))} in step {new_game_state["step"]}')
+    self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
 
     old_feature_state = state_to_features(
-        old_game_state, self.max_opponents_score)
+        old_game_state, self.max_opponents_score).to(self.device)
     new_feature_state = state_to_features(
-        new_game_state, self.max_opponents_score)
+        new_game_state, self.max_opponents_score).to(self.device)
     reward = reward_from_events(self, events)
-    is_not_terminal = True
+    is_terminal = False
 
     self.agent.training_step(old_feature_state, new_feature_state,
-                             self_action, reward, is_not_terminal)
+                             self_action, reward, is_terminal)
 
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
@@ -78,22 +79,22 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
     Author: Luke Voss
     """
-
     # Hand out self shaped events
-    events = add_own_events(self, last_game_state, last_action, events,
+    events = add_own_events(last_game_state, 
+                            last_action, 
+                            events,
                             end_of_round=False,
                             agent_coord_history=self.agent_coord_history,
                             max_opponents_score=self.max_opponents_score)
 
     # Log Events
-    self.logger.debug(f'Encountered event(s) 
-                      {", ".join(map(repr, events))} in final step')
+    self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
 
     reward = reward_from_events(self, events)
-    old_feature_state = state_to_features(last_game_state)
-    is_not_terminal = False
+    old_feature_state = state_to_features(last_game_state, self.max_opponents_score).to(self.device)
+    is_terminal = True
 
-    self.agent.training_step(old_feature_state, None, last_action, reward,  is_not_terminal)
+    self.agent.training_step(old_feature_state, None, last_action, reward,  is_terminal)
 
     # Store the model
     n_round = last_game_state['round']
@@ -115,23 +116,35 @@ def reward_from_events(self, events: List[str]) -> int:
     """
     # Base rewards:
     aggressive_action = 0.3
-    coin_action = 0.2
+    coin_action = 1
+    crate_action = 0.2
     escape = 0.6
     waiting = 0.5
 
     game_rewards = {
         # SPECIAL EVENTS
-        own_e.ESCAPE: escape,
-        own_e.NOT_ESCAPE: -escape,
+        own_e.CONSTANT_PENALTY: -0.001,
+        own_e.WON_ROUND: 10,
+        own_e.BOMBED_1_TO_2_CRATES: 0,
+        own_e.BOMBED_3_TO_5_CRATES: 0,
+        own_e.BOMBED_5_PLUS_CRATES: 0,
+        own_e.GOT_IN_LOOP: -0.025,
+        own_e.ESCAPING: escape,
+        own_e.OUT_OF_DANGER: 0.8,
+        own_e.NOT_ESCAPING: -escape,
+        own_e.CLOSER_TO_COIN: coin_action,
+        own_e.AWAY_FROM_COIN: -coin_action,
+        own_e.CLOSER_TO_CRATE: crate_action,
+        own_e.AWAY_FROM_CRATE: -crate_action,
+        own_e.SURVIVED_STEP: 0.1,
+        own_e.DESTROY_TARGET: 0.6,
+        own_e.MISSED_TARGET: -0.6,
         own_e.WAITED_NECESSARILY: waiting,
         own_e.WAITED_UNNECESSARILY: -waiting,
         own_e.CLOSER_TO_PLAYERS: aggressive_action,
         own_e.AWAY_FROM_PLAYERS: -aggressive_action,
-        own_e.CLOSER_TO_COIN: coin_action,
-        own_e.AWAY_FROM_COIN: -coin_action,
-        own_e.CONSTANT_PENALTY: -0.001,
-        own_e.WON_ROUND: 10,
-        own_e.GET_IN_LOOP: -0.025 * self.loop_count,
+        own_e.SMART_BOMB_DROPPED: 1,
+        own_e.DUMB_BOMB_DROPPED: -1,
 
         # DEFAULT EVENTS
         e.INVALID_ACTION: -1,

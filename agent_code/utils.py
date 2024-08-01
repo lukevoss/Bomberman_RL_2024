@@ -459,7 +459,9 @@ class GameState:
                 new_coords = opponent_coord
                 for _ in range(0, s.BOMB_POWER):
                     new_coords = move_in_direction(new_coords, direction)
-                    if self.is_valid_movement(new_coords) and self._is_deadend(new_coords):
+                    if not self.is_valid_movement(new_coords):
+                        break
+                    if self._is_deadend(new_coords):
                         return True
         return False
 

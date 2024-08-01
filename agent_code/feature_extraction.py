@@ -61,7 +61,7 @@ from agent_code.utils import *
 FEATURE_VECTOR_SIZE = 30
 
 
-def state_to_features(game_state: dict, max_opponent_score: int) -> torch.tensor:
+def state_to_features(game_state: dict, max_opponents_score: int) -> torch.tensor:
     feature_vector = torch.zeros(FEATURE_VECTOR_SIZE)
 
     state = GameState(**game_state)
@@ -107,6 +107,6 @@ def state_to_features(game_state: dict, max_opponent_score: int) -> torch.tensor
 
     # Are we currently in the lead?
     own_score = state.self[1]
-    feature_vector[29] = own_score > max_opponent_score
+    feature_vector[29] = own_score > max_opponents_score
 
     return feature_vector

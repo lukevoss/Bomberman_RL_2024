@@ -337,6 +337,10 @@ class TestingGameState(unittest.TestCase):
     def test_is_perfect_bomb_spot(self):
         state = copy.deepcopy(self.state)
 
+        # Opponent at the edge of field, not in deadend
+        state.others = [('test_agent', 0, 1, (15, 15))]
+        self.assertFalse(state.is_perfect_bomb_spot((14, 15)))
+
         # Can destroy 4 crates
         state.field[1, 2] = CRATE
         state.field[1, 3] = CRATE
@@ -359,6 +363,8 @@ class TestingGameState(unittest.TestCase):
         # Opponent not in deadend
         state.field[1, 2] = FREE
         self.assertFalse(state.is_perfect_bomb_spot((3, 1)))
+
+        
 
     def test_sort_and_filter_out_dangerous_bombs(self):
         state = copy.deepcopy(self.state)
