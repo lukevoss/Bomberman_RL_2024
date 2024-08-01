@@ -114,12 +114,7 @@ def reward_from_events(self, events: List[str]) -> int:
 
     Author: Luke Voss
     """
-    # Base rewards:
-    aggressive_action = 0.3
-    coin_action = 1
-    crate_action = 0.2
-    escape = 0.6
-    waiting = 0.5
+
 
     game_rewards = {
         # SPECIAL EVENTS
@@ -129,31 +124,31 @@ def reward_from_events(self, events: List[str]) -> int:
         own_e.BOMBED_3_TO_5_CRATES: 0,
         own_e.BOMBED_5_PLUS_CRATES: 0,
         own_e.GOT_IN_LOOP: -0.025,
-        own_e.ESCAPING: escape,
-        own_e.OUT_OF_DANGER: 0.8,
-        own_e.NOT_ESCAPING: -escape,
-        own_e.CLOSER_TO_COIN: coin_action,
-        own_e.AWAY_FROM_COIN: -coin_action,
-        own_e.CLOSER_TO_CRATE: crate_action,
-        own_e.AWAY_FROM_CRATE: -crate_action,
-        own_e.SURVIVED_STEP: 0.1,
-        own_e.DESTROY_TARGET: 0.6,
-        own_e.MISSED_TARGET: -0.6,
-        own_e.WAITED_NECESSARILY: waiting,
-        own_e.WAITED_UNNECESSARILY: -waiting,
-        own_e.CLOSER_TO_PLAYERS: aggressive_action,
-        own_e.AWAY_FROM_PLAYERS: -aggressive_action,
-        own_e.SMART_BOMB_DROPPED: 1,
+        own_e.ESCAPING: 0.03,
+        own_e.OUT_OF_DANGER: 0.05,
+        own_e.NOT_ESCAPING: -0.01,
+        own_e.CLOSER_TO_COIN: 0.05,
+        own_e.AWAY_FROM_COIN: -0.02,
+        own_e.CLOSER_TO_CRATE: 0.01,
+        own_e.AWAY_FROM_CRATE: -0.05,
+        own_e.SURVIVED_STEP: 0,
+        own_e.DESTROY_TARGET: 0.03,
+        own_e.MISSED_TARGET: -0.01,
+        own_e.WAITED_NECESSARILY: 0.05,
+        own_e.WAITED_UNNECESSARILY: -2,
+        own_e.CLOSER_TO_PLAYERS: 0.02,
+        own_e.AWAY_FROM_PLAYERS: -0.01,
+        own_e.SMART_BOMB_DROPPED: 0.06,
         own_e.DUMB_BOMB_DROPPED: -1,
 
         # DEFAULT EVENTS
         e.INVALID_ACTION: -1,
         e.BOMB_DROPPED: 0,
         e.BOMB_EXPLODED: 0,
-        e.CRATE_DESTROYED: 0.4,
+        e.CRATE_DESTROYED: 0.01,
         e.COIN_FOUND: 0,
-        e.COIN_COLLECTED: 2,
-        e.KILLED_OPPONENT: 5,
+        e.COIN_COLLECTED: 3,
+        e.KILLED_OPPONENT: 6,
         e.KILLED_SELF: -8,
         e.GOT_KILLED: -10,
         e.OPPONENT_ELIMINATED: 0,

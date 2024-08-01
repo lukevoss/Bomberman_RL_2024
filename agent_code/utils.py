@@ -527,8 +527,7 @@ def increased_distance(old_coords, new_coords, object_coords):
 
 
 def has_destroyed_target(events):
-    if e.BOMB_EXPLODED in events:
-        return e.KILLED_OPPONENT in events or e.CRATE_DESTROYED in events
+    return e.KILLED_OPPONENT in events or e.CRATE_DESTROYED in events
 
 
 def get_action_idx_from_coords(agent_coords, new_coords):

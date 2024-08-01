@@ -28,6 +28,7 @@ class PPOAgent:
         self.log_probs = []
         self.loss_sum = 0
         self.n_updates = 0
+        self.n_rounds = 0
         self.round_rewards = 0
 
         self.train = train
@@ -35,7 +36,7 @@ class PPOAgent:
     def _initialize_model(self, pretrained_model, input_feature_size, hidden_size, network_type):
         num_outputs = len(INPUT_MAP)
         if pretrained_model:
-            model_path = os.path.join('./models', pretrained_model)
+            model_path = os.path.join('.\models', pretrained_model)
             if not os.path.isfile(model_path):
                 raise FileNotFoundError(f"Pretrained model at {model_path} not found.")
             return self._load_model(model_path, input_feature_size, hidden_size, num_outputs, network_type)
@@ -209,10 +210,12 @@ class PPOAgent:
                 self.loss_sum += loss
                 self.n_updates += 1
 
-            if is_terminal:
+            if self.n_updates == 10:
                 print(' Total rewards of {}, Loss: {}'.format(
-                    self.round_rewards, self.loss_sum/self.n_updates))
+                    self.round_rewards/self.n_updates, self.loss_sum/self.n_updates))
                 self.round_rewards = 0
+                self.loss_sum = 0
+                self.n_updates = 0
 
             self.states = []
             self.actions = []
@@ -221,7 +224,12 @@ class PPOAgent:
             self.masks = []
             self.log_probs = []
 
-            #return loss
+            if is_terminal:
+                self.n_rounds += 1
+
+            if self.n_rounds % 100 == 0:
+                self.save_model('ppo_v0')
+
 
     def save_model(self, model_name="ppo_model"):
         model_path = os.path.join("./models", model_name + ".pt")

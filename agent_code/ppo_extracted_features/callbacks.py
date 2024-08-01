@@ -37,8 +37,8 @@ def setup(self):
     # Hyperparameter
     self.MAX_COORD_HISTORY = 6
     FEATURE_SIZE = 30
-    HIDDEN_SIZE = 256
-    NETWORK_TYPE = 'LSTM'
+    HIDDEN_SIZE = 50
+    NETWORK_TYPE = 'MLP'
 
     self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Model is run on: {self.device}")
@@ -77,9 +77,10 @@ def act(self, game_state: dict) -> str:
 
     self.agent_coord_history.append(game_state['self'][3])
     living_opponent_scores = [opponent[1] for opponent in game_state['others']]
-    max_living_opponent_score = max(living_opponent_scores)
-    self.max_opponents_score = max(
-        self.max_opponents_score, max_living_opponent_score)
+    if living_opponent_scores:
+        max_living_opponent_score = max(living_opponent_scores)
+        self.max_opponents_score = max(
+            self.max_opponents_score, max_living_opponent_score)
 
     feature_vector = state_to_features(
         game_state, self.max_opponents_score).to(self.device)

@@ -166,6 +166,13 @@ class TestingAddOwnEvents(unittest.TestCase):
         self.assertIn(own_e.MISSED_TARGET, result)
         self.assertNotIn(own_e.DESTROY_TARGET, result)
 
+        # No Bomb exploded
+        self.events_src = []
+        result = add_own_events(state, 'UP', self.events_src,
+                                self.end_of_round, self.agent_coord_history, self.max_opponents_score)
+        self.assertNotIn(own_e.MISSED_TARGET, result)
+        self.assertNotIn(own_e.DESTROY_TARGET, result)
+
     def test_bombed_1_to_2_crates(self):
         state = copy.deepcopy(self.old_game_state)
         self.events_src = [e.CRATE_DESTROYED, e.CRATE_DESTROYED]

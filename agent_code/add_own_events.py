@@ -81,10 +81,11 @@ def add_own_events(old_game_state, self_action, events_src, end_of_round, agent_
             elif increased_distance(agent_coords, new_agents_coords, crate_coords):
                 events.append(own_e.AWAY_FROM_CRATE)
 
-    if has_destroyed_target(events):
-        events.append(own_e.DESTROY_TARGET)
-    else:
-        events.append(own_e.MISSED_TARGET)
+    if e.BOMB_EXPLODED in events:
+        if has_destroyed_target(events):
+            events.append(own_e.DESTROY_TARGET)
+        else:
+            events.append(own_e.MISSED_TARGET)
 
     if e.CRATE_DESTROYED in events:
         number_of_crates_destroyed = events.count(e.CRATE_DESTROYED)
