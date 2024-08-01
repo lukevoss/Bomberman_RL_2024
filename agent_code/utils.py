@@ -200,7 +200,7 @@ class GameState:
         """Sorts bombs by Manhattan distance to the agent."""
         return sorted(bombs, key=lambda bomb: manhatten_distance(bomb[0], agent_coords))
 
-    def get_coins_sorted_by_distance(self, agent_coords: Tuple[int, int], coins: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+    def get_coins_sorted_by_distance(self, agent_coords: Tuple[int, int]) -> List[Tuple[int, int]]:
         """Sorts coins by Manhattan distance to the agent."""
         return sorted(self.coins, key=lambda coin: manhatten_distance(coin, agent_coords))
 
@@ -211,7 +211,7 @@ class GameState:
     def find_closest_crate(self, agent_coords: Tuple[int, int]) -> Tuple[int, int]:
         """
         Breadth First Search for efficiant search of closest crate
-        Ignores opponents and bombs
+        Ignores opponents and bombs and walls
         """
         rows, cols = len(self.field), len(self.field[0])
         queue = deque([agent_coords])
@@ -226,7 +226,7 @@ class GameState:
             # Explore the four possible directions
             for direction in MOVEMENT_DIRECTIONS:
                 next_coords = move_in_direction(coords, direction)
-                if (is_in_game_grid(next_coords, rows, cols) and
+                if (is_in_game_grid(next_coords) and
                         next_coords not in visited):
                     visited.add(next_coords)
                     queue.append(next_coords)

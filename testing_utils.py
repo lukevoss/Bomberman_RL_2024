@@ -394,45 +394,108 @@ class TestingGameState(unittest.TestCase):
         state.bombs = [((1, 1), 0), ((2, 2), 0), ((3, 3), 0)]
         self.assertEqual(state.sort_and_filter_out_dangerous_bombs((5, 5)), [])
 
+    def test_sort_coins_by_distance(self):
+        state = copy.deepcopy(self.state)
 
-"""
+        state.coins = [(5, 5), (1, 1), (3, 3), (2, 2), (4, 4)]
+        agent_coords = (0, 0)
+        sorted_coins = state.get_coins_sorted_by_distance(agent_coords)
+        self.assertEqual(sorted_coins, [
+                         (1, 1), (2, 2), (3, 3), (4, 4), (5, 5)])
+
+        # Coins same distance
+        state.coins = [(1, 0), (0, 1), (-1, 0), (0, -1)]
+        sorted_coins = state.get_coins_sorted_by_distance(agent_coords)
+        # Check if sorted by distance and keeps tuple order
+        self.assertListEqual(
+            sorted_coins, [(1, 0), (0, 1), (-1, 0), (0, -1)])
+
+        # No Coins
+        state.coins = []
+        self.assertEqual(state.get_coins_sorted_by_distance(agent_coords), [])
+
+        # One Coin
+        state.coins = [(2, 2)]
+        self.assertEqual(state.get_coins_sorted_by_distance(
+            agent_coords), [(2, 2)])
+
+    def test_sort_opponents_by_distance(self):
+        state = copy.deepcopy(self.state)
+
+        agent_coords = (0, 0)
+        state.others = [('opponent1', 4, 0, (5, 5)),
+                        ('opponent2', 3, 1, (1, 1)),
+                        ('opponent3', 0, 0, (3, 3))]
+        sorted_opponents = state.get_opponents_sorted_by_distance(agent_coords)
+        expected_order = [('opponent2', 3, 1, (1, 1)),
+                          ('opponent3', 0, 0, (3, 3)),
+                          ('opponent1', 4, 0, (5, 5))]
+        self.assertEqual(sorted_opponents, expected_order)
+
+        # No opponents
+        state.others = []
+        self.assertEqual(
+            state.get_opponents_sorted_by_distance(agent_coords), [])
+
+        # One opponent
+        state.others = [('opponent1', 4, 0, (2, 2))]
+        self.assertEqual(state.get_opponents_sorted_by_distance(
+            agent_coords), state.others)
+
+    def test_find_closest_create(self):
+        state = copy.deepcopy(self.state)
+        # Test Crate Directly Adjacent
+        state.field[2, 3] = CRATE
+        self.assertEqual(state.find_closest_crate((1, 1)), (2, 3))
+        self.assertEqual(state.find_closest_crate((2, 1)), (2, 3))
+
+        # Test No Crates
+        state.field[2][3] = 0
+        self.assertIsNone(state.find_closest_crate((1, 1)))
+
+        # Test Multiple Crates Same Distance
+        state.field[2, 3] = CRATE
+        state.field[3, 3] = CRATE
+        self.assertEqual(state.find_closest_crate((1, 1)), (2, 3))
+        self.assertEqual(state.find_closest_crate((3, 4)), (3, 3))
+
+    def test_is_dangerous_bomb(self):
+        state = copy.deepcopy(self.state)
+
+        # Bomb in same row, clear path, within distance
+        self.assertTrue(state._is_dangerous_bomb((1, 1), (1, 4)))
+
+        # Bomb in same column, clear path, within distance
+        self.assertTrue(state._is_dangerous_bomb((1, 1), (4, 1)))
+
+        # Bomb in same row, more than 3 cells away
+        self.assertFalse(state._is_dangerous_bomb((1, 1), (1, 5)))
+
+        # Bomb in same row, path blocked
+        self.assertFalse(state._is_dangerous_bomb((1, 2), (3, 2)))
+
+        # Bomb not in same row or column
+        self.assertFalse(state._is_dangerous_bomb((1, 1), (3, 3)))
+
+        # Bomb goes through crates
+        state.field[1, 2] = CRATE
+        self.assertTrue(state._is_dangerous_bomb((1, 1), (1, 3)))
+
+    def test_is_wall_free_path(self):
+        state = copy.deepcopy(self.state)
+
+        self.assertTrue(state._is_wall_free_path((1, 1), (1, 3)))
+        self.assertTrue(state._is_wall_free_path((1, 1), (3, 1)))
+        self.assertFalse(state._is_wall_free_path((1, 1), (2, 3)))
+        # Same position as bomb
+        self.assertTrue(state._is_wall_free_path((1, 1), (1, 1)))
+        # Blocked by wall vertically
+        self.assertFalse(state._is_wall_free_path((1, 2), (3, 2)))
+        # Blocked by wall horizontally
+        self.assertFalse(state._is_wall_free_path((2, 1), (2, 3)))
+
+
 class TestingUtils(unittest.TestCase):
-    def setUp(self):
-        # Common field setup for the tests
-        self.field_small = np.array([
-            [0, 0, 0],
-            [0, -1, 0],
-            [0, 0, 0]
-        ])
-        self.field = np.array([
-            [0, 0, 0, 0, 0],
-            [0, -1, 0, 0, 0],
-            [0, 0, 0, -1, 0],
-            [0, 0, 1, 0, 0],
-            [0, 0, 0, 0, 0]
-        ])
-        self.game_field = np.array([
-            [-1, -1, -1, -1, -1, -1, -1],
-            [-1,  0,  0,  0,  0,  0, -1],
-            [-1,  0, -1,  0,  0,  0, -1],
-            [-1,  0,  0,  0, -1,  0, -1],
-            [-1,  0,  0,  0,  0,  0, -1],
-            [-1,  0,  0,  0,  1,  1, -1],
-            [-1, -1, -1, -1, -1, -1, -1],
-        ])
-        self.small_game_field = np.array([
-            [-1, -1, -1, -1, -1],
-            [-1,  1,  0,  0, -1],
-            [-1,  0, -1,  0, -1],
-            [-1,  0,  1,  0, -1],
-            [-1, -1, -1, -1, -1]
-        ])
-        self.opponents = [
-            ('opponent1', 4, 0, (5, 5)),
-            ('opponent2', 3, 1, (1, 1)),
-            ('opponent3', 0, 0, (3, 3))
-        ]
-        self.explosion_map = np.zeros((7, 7))
 
     def test_march_forward(self):
         self.assertEqual(march_forward((0, 0), 'LEFT'), (-1, 0))
@@ -441,130 +504,12 @@ class TestingUtils(unittest.TestCase):
         self.assertEqual(march_forward((0, 0), 'DOWN'), (0, 1))
         self.assertEqual(march_forward((0, 0), 'WAIT'), (0, 0))
 
-    def test_is_in_explosion(self):
-        explosion_map = np.array([[0, 0],
-                                  [2, 1]])
-        self.assertTrue(is_in_explosion((1, 1), explosion_map))
-        self.assertTrue(is_in_explosion((1, 0), explosion_map))
-        self.assertFalse(is_in_explosion((0, 0), explosion_map))
-
-    def test_is_wall_free_path(self):
-        self.assertTrue(is_wall_free_path((0, 0), (0, 2), self.field_small))
-        self.assertTrue(is_wall_free_path((0, 0), (2, 0), self.field_small))
-        self.assertFalse(is_wall_free_path((0, 0), (2, 1), self.field_small))
-        # Same position as bomb
-        self.assertTrue(is_wall_free_path((0, 0), (0, 0), self.field_small))
-        # Blocked by wall vertically
-        self.assertFalse(is_wall_free_path((0, 1), (2, 1), self.field_small))
-        # Blocked by wall horizontally
-        self.assertFalse(is_wall_free_path((1, 0), (1, 2), self.field_small))
-
-    def test_is_dangerous_bomb(self):
-        # Bomb in same row, clear path, within distance
-        self.assertTrue(is_dangerous_bomb((0, 1), (0, 3), self.field))
-        # Bomb in same column, clear path, within distance
-        self.assertTrue(is_dangerous_bomb((1, 2), (3, 2), self.field))
-        # Bomb in same row, exactly 3 cells away
-        self.assertTrue(is_dangerous_bomb((0, 0), (0, 3), self.field))
-        # Bomb in same row, more than 3 cells away
-        self.assertFalse(is_dangerous_bomb((0, 0), (0, 4), self.field))
-        # Bomb in same row, path blocked
-        self.assertFalse(is_dangerous_bomb((1, 0), (1, 2), self.field))
-        # Bomb not in same row or column
-        self.assertFalse(is_dangerous_bomb((2, 2), (4, 4), self.field))
-        # Bomb goes through crates
-        self.assertTrue(is_dangerous_bomb((3, 1), (3, 3), self.field))
-
-    def test_filter_dangerous_bombs(self):
-        bombs = [(0, 3), (1, 0), (3, 2), (4, 4)]
-        # One bomb in the same row and two in the same column, only two are dangerous
-        dangerous_bombs = filter_dangerous_bombs((0, 0), bombs, self.field)
-        self.assertEqual(len(dangerous_bombs), 2)
-        self.assertTrue((0, 3) in dangerous_bombs)
-        self.assertTrue((1, 0) in dangerous_bombs)
-
-        # No bombs are dangerous
-        bombs = [(4, 4), (3, 0)]
-        dangerous_bombs = filter_dangerous_bombs((0, 1), bombs, self.field)
-        self.assertEqual(len(dangerous_bombs), 0)
-
-        # All bombs are dangerous
-        bombs = [(0, 0), (0, 1), (0, 2)]
-        dangerous_bombs = filter_dangerous_bombs((0, 0), bombs, self.field)
-        self.assertEqual(len(dangerous_bombs), 3)
-
     def test_manhattan_distance(self):
         self.assertEqual(manhatten_distance((0, 0), (0, 0)), 0)
         self.assertEqual(manhatten_distance((0, 0), (5, 0)), 5)
         self.assertEqual(manhatten_distance((0, 0), (0, 5)), 5)
         self.assertEqual(manhatten_distance((3, 4), (7, 8)), 8)
         self.assertEqual(manhatten_distance((-1, -1), (1, 1)), 4)
-
-    def test_sort_objects_by_distance(self):
-        objects = [(5, 5), (1, 1), (3, 3), (2, 2), (4, 4)]
-        agent_coords = (0, 0)
-        sorted_objects = sort_objects_by_distance(agent_coords, objects)
-        self.assertEqual(sorted_objects, [
-                         (1, 1), (2, 2), (3, 3), (4, 4), (5, 5)])
-
-        objects_same_distance = [(1, 0), (0, 1), (-1, 0), (0, -1)]
-        sorted_objects = sort_objects_by_distance(
-            agent_coords, objects_same_distance)
-        # Check if sorted by distance and keeps tuple order
-        self.assertListEqual(
-            sorted_objects, [(1, 0), (0, 1), (-1, 0), (0, -1)])
-
-        self.assertEqual(sort_objects_by_distance(agent_coords, []), [])
-        self.assertEqual(sort_objects_by_distance(
-            agent_coords, [(2, 2)]), [(2, 2)])
-
-    def test_sort_opponents_by_distance(self):
-
-        agent_coords = (0, 0)
-        sorted_opponents = sort_opponents_by_distance(
-            agent_coords, self.opponents)
-        expected_order = [('opponent2', 3, 1, (1, 1)),
-                          ('opponent3', 0, 0, (3, 3)),
-                          ('opponent1', 4, 0, (5, 5))]
-        self.assertEqual(sorted_opponents, expected_order)
-
-        self.assertEqual(sort_opponents_by_distance(agent_coords, []), [])
-
-        single_opponent = [('opponent1', 4, 0, (2, 2))]
-        self.assertEqual(sort_opponents_by_distance(
-            agent_coords, single_opponent), single_opponent)
-
-
-    
-
-    def test_has_highest_score(self):
-        self.assertTrue(has_highest_score(self.opponents, 5))
-        self.assertFalse(has_highest_score(self.opponents, 2))
-        self.assertTrue(has_highest_score([], 2))
-
-    def test_has_won_the_game(self):
-        # Win at the end of the round
-        single_opponent = [('opponent2', 3, 1, (1, 1))]
-        self.assertTrue(has_won_the_round(
-            self.opponents, 5, [], MAX_STEPS))
-        # Player got killed
-        self.assertFalse(has_won_the_round(
-            self.opponents, 5, ['GOT_KILLED'], 50))
-        # Player killed themselves with more than one opponent alive
-        self.assertFalse(has_won_the_round(
-            self.opponents, 5, ['KILLED_SELF'], 50))
-        # Player killed themselves with no opponents left
-        self.assertTrue(has_won_the_round(
-            single_opponent, 5, ['KILLED_SELF'], 50))
-        # Check for invalid game state exception
-        with self.assertRaises(ValueError):
-            has_won_the_round(single_opponent, 2, [], 50)
-
-    
-
-    
-
-    
 
     def test_increased_distance(self):
         self.assertFalse(increased_distance((0, 1), (0, 0), (0, 0)))
@@ -583,31 +528,6 @@ class TestingUtils(unittest.TestCase):
         self.assertFalse(got_in_loop((0, 1), agent_coord_history))
         self.assertFalse(got_in_loop((1, 0), agent_coord_history))
 
-    
-
-    def test_find_closest_create(self):
-        # Test Crate Directly Adjacent
-        field = np.array([
-            [0, -1, 0],
-            [0, 0, 1],
-            [0, 0, 0]
-        ])
-        self.assertEqual(find_closest_crate((1, 1), field), (1, 2))
-        self.assertEqual(find_closest_crate((0, 0), field), (1, 2))
-
-        # Test No Crates
-        field[1][2] = 0
-        self.assertIsNone(find_closest_crate((1, 1), field))
-
-        # Test Multiple Crates Same Distance
-        field_multiple = np.array([
-            [1, 0, 0],
-            [1, 0, 0],
-            [0, 0, 1]
-        ])
-        self.assertEqual(find_closest_crate((1, 1), field_multiple), (1, 0))
-        self.assertEqual(find_closest_crate((0, 2), field_multiple), (0, 0))
-
     def test_has_destroyed_target(self):
         events = ['BOMB_EXPLODED', 'KILLED_OPPONENT']
         self.assertTrue(has_destroyed_target(events))
@@ -619,102 +539,10 @@ class TestingUtils(unittest.TestCase):
         self.assertFalse(has_destroyed_target(events))
 
     def test_is_in_game_grid(self):
-        self.assertTrue(is_in_game_grid((0, 0), 3, 3))
-        self.assertFalse(is_in_game_grid((3, 3), 3, 3))
-        self.assertFalse(is_in_game_grid((-1, 0), 3, 3))
+        self.assertTrue(is_in_game_grid((1, 1)))
+        self.assertFalse(is_in_game_grid((17, 17)))
+        self.assertFalse(is_in_game_grid((-1, 1)))
 
-    def test_simulate_bomb_explosion(self):
-        bomb_simulated_field = np.array([
-            [-1, -1, -1, -1, -1, -1, -1],
-            [-1,  0,  0,  0,  0,  0, -1],
-            [-1,  0, -1,  2,  0,  0, -1],
-            [-1,  0,  0,  2, -1,  0, -1],
-            [-1,  0,  0,  2,  0,  0, -1],
-            [-1,  2,  2,  2,  2,  2, -1],
-            [-1, -1, -1, -1, -1, -1, -1],
-        ])
-        test_simulated_field, test_n_crates = simulate_bomb_explosion(
-            (5, 3), self.game_field)
-        assert_array_equal(test_simulated_field, bomb_simulated_field)
-        self.assertEqual(test_n_crates, 2)
-
-        bomb_simulated_field = np.array([
-            [-1, -1, -1, -1, -1, -1, -1],
-            [-1,  0,  0,  2,  0,  0, -1],
-            [-1,  0, -1,  2,  2,  2, -1],
-            [-1,  0,  0,  2, -1,  0, -1],
-            [-1,  0,  0,  2,  0,  0, -1],
-            [-1,  0,  0,  2,  1,  1, -1],
-            [-1, -1, -1, -1, -1, -1, -1],
-        ])
-        test_simulated_field, test_n_crates = simulate_bomb_explosion(
-            (2, 3), self.game_field)
-        assert_array_equal(test_simulated_field, bomb_simulated_field)
-        self.assertEqual(test_n_crates, 0)
-
-    def test_path_to_safety_exists(self):
-        bombs = []
-        opponents = []
-        bomb_simulated_field = np.array([
-            [-1, -1, -1, -1, -1],
-            [-1,  1,  0,  2, -1],
-            [-1,  0, -1,  2, -1],
-            [-1,  2,  2,  2, -1],
-            [-1, -1, -1, -1, -1]
-        ])
-        self.assertTrue(path_to_safety_exists(
-            (3, 3), bomb_simulated_field, self.small_game_field, opponents, bombs))
-        # bomb and opponent in the way
-        bombs = [(3, 1)]
-        opponents = [(1, 3)]
-        self.assertFalse(path_to_safety_exists(
-            (3, 3), bomb_simulated_field, self.small_game_field, opponents, bombs))
-
-        bombs = []
-        opponents = []
-        bomb_simulated_field_no_path = np.array([
-            [-1, -1, -1, -1, -1],
-            [-1,  2,  0,  0, -1],
-            [-1,  2, -1,  0, -1],
-            [-1,  2,  2,  2, -1],
-            [-1, -1, -1, -1, -1]
-        ])
-        self.assertFalse(path_to_safety_exists(
-            (3, 1), bomb_simulated_field_no_path, self.small_game_field, opponents, bombs))
-
-    def test_potentially_destroying_opponent(self):
-        opponents = [('opponent1', 3, 1, (3, 1)),
-                     ('opponent2', 3, 1, (1, 2))]
-        bomb_simulated_field = np.array([
-            [-1, -1, -1, -1, -1],
-            [-1,  1,  0,  2, -1],
-            [-1,  0, -1,  2, -1],
-            [-1,  2,  2,  2, -1],
-            [-1, -1, -1, -1, -1]
-        ])
-        # Destroyes one opponent trough crate
-        self.assertTrue(potentially_destroying_opponent(
-            bomb_simulated_field, opponents))
-
-        # Destroyes no opponent
-        opponents = [('opponent1', 3, 1, (2, 1)),
-                     ('opponent2', 3, 1, (1, 2))]
-        self.assertFalse(potentially_destroying_opponent(
-            bomb_simulated_field, opponents))
-
-        # Destroyes two opponent
-        opponents = [('opponent1', 3, 1, (3, 1)),
-                     ('opponent2', 3, 1, (3, 3))]
-        self.assertTrue(potentially_destroying_opponent(
-            bomb_simulated_field, opponents))
-
-        # No opponent present
-        opponents = []
-        self.assertFalse(potentially_destroying_opponent(
-            bomb_simulated_field, opponents))
-
-    
-"""
 
 if __name__ == '__main__':
     unittest.main()
