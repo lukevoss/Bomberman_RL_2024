@@ -8,34 +8,14 @@ Up -> Left
 Left -> Up
 Right -> Down
 
-# TODO Update simualte_bomb and simulate bomb explosion -> get blast coords
-# TODO Add is effective
+# TODO: Testing stop criterion and object exists
 """
-
-from agent_code.utils import *
 import unittest
+
 import numpy as np
 from numpy.testing import assert_array_equal
 
-EMPTY_FIELD = np.array([
-    [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
-    [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
-    [-1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1],
-    [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
-    [-1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1],
-    [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
-    [-1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1],
-    [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
-    [-1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1],
-    [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
-    [-1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1],
-    [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
-    [-1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1],
-    [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
-    [-1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1],
-    [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
-    [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1]
-])
+from agent_code.utils import *
 
 
 class TestingGameState(unittest.TestCase):
@@ -289,7 +269,7 @@ class TestingGameState(unittest.TestCase):
         # No way exists
         state.coins = [(6, 3)]
         action_idx = state.get_action_idx_to_closest_thing('coin')
-        self.assertEqual(action_idx, 4)
+        self.assertIsNone(action_idx)
 
         # Walk around crates
         state = copy.deepcopy(self.state)
@@ -333,6 +313,11 @@ class TestingGameState(unittest.TestCase):
 
     def test_get_danger_in_each_direction(self):
         state = copy.deepcopy(self.state)
+
+        # No Danger, but invalid moves
+        danger = state.get_danger_in_each_direction((1, 1))
+        ground_truth_danger = [1, 0, 1, 0, 0]
+        assert_array_equal(danger, ground_truth_danger)
 
         # One bomb one explosion
         state.self = ('test_agent', 0, 1, (3, 3))

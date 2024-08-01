@@ -40,6 +40,26 @@ MEDIUM_DANGER = 0.5
 LOW_DANGER = 0.25
 NO_DANGER = 0
 
+EMPTY_FIELD = np.array([
+    [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+    [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
+    [-1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1],
+    [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
+    [-1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1],
+    [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
+    [-1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1],
+    [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
+    [-1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1],
+    [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
+    [-1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1],
+    [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
+    [-1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1],
+    [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
+    [-1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1,  0, -1],
+    [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
+    [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1]
+])
+
 
 @dataclass
 class GameState:
@@ -139,18 +159,26 @@ class GameState:
         shortest_path = self._find_shortest_path(
             agent_coords, thing)
 
-        if shortest_path:
+        if shortest_path == None:
+            return None
+        elif shortest_path == []:
+            return ACTIONS.index('WAIT')
+        else:
             first_step_coords = shortest_path[0]
             return get_action_idx_from_coords(agent_coords, first_step_coords)
-        else:
-            return ACTIONS.index('WAIT')
 
     def get_danger_in_each_direction(self, coords: Tuple[int, int]) -> np.ndarray:
+        """
+        Returns a vector with amount of danger in each direction 1 with extreme danger and 0 with no danger.
+        Invalid moves have Danger of 1
+        """
         danger_per_action = np.zeros(len(DIRECTIONS_AND_WAIT))
         for idx_action, direction in enumerate(DIRECTIONS_AND_WAIT):
-            new_coords = coords[0] + direction[0], coords[1] + direction[1]
+            new_coords = move_in_direction(coords, direction)
             sorted_dangerous_bombs = self.sort_and_filter_out_dangerous_bombs(
                 new_coords)
+            if (not self.is_valid_movement(new_coords) and coords != new_coords):
+                danger_per_action[idx_action] = EXTREME_DANGER
             if self.explosion_map[new_coords] == 1:
                 danger_per_action[idx_action] = EXTREME_DANGER
             for bomb_coords, timer in sorted_dangerous_bombs:
@@ -355,42 +383,46 @@ class GameState:
         """
         shortest_path = self._find_shortest_path(
             agent_coords, 'safety', place_bomb=True)
-        return shortest_path != []
+        return bool(shortest_path)
 
     def _find_shortest_path(self, start_coords: Tuple[int, int], thing: str, place_bomb=False):
         """
         Returns the shortest path to one of the given goal coordinates, currently bombs and opponents block movements
-        with next game state estimation
+        with next game state estimation. If no path exist it returns None if criterion true at current position, 
+        returns empty array
         TODO put waiting into exploring?
         """
         starting_game_state = copy.deepcopy(self)
-        if place_bomb:
-            starting_game_state.bombs.append((start_coords, s.BOMB_TIMER))
+        stop_criterion, object_exists = get_stop_criterion_for_thing(thing)
 
-        queue = deque([(start_coords, starting_game_state)])
-        visited = set([start_coords])
-        parent = {start_coords: None}
-        stop_criterion = get_stop_criterion_for_thing(thing)
+        if object_exists(starting_game_state):
+            if place_bomb:
+                starting_game_state.bombs.append((start_coords, s.BOMB_TIMER))
 
-        while queue:
-            current_coords, current_game_state = queue.popleft()
-            if stop_criterion(current_game_state, current_coords):
-                step = current_coords
-                path = []
-                while step != start_coords:
-                    path.append(step)
-                    step = parent[step]
-                return path[::-1]
+            queue = deque([(start_coords, starting_game_state)])
+            visited = set([start_coords])
+            parent = {start_coords: None}
 
-            for action in MOVEMENT_ACTIONS:
-                next_game_state = current_game_state.next(action)
-                if next_game_state != None:
-                    new_coords = next_game_state.self[3]
-                    if new_coords not in visited:
-                        queue.append((new_coords, next_game_state))
-                        visited.add(new_coords)
-                        parent[new_coords] = current_coords
-        return []
+            while queue:
+                current_coords, current_game_state = queue.popleft()
+                if stop_criterion(current_game_state, current_coords):
+                    step = current_coords
+                    path = []
+                    while step != start_coords:
+                        path.append(step)
+                        step = parent[step]
+                    return path[::-1]
+
+                for action in MOVEMENT_ACTIONS:
+                    next_game_state = current_game_state.next(action)
+                    if next_game_state != None:
+                        new_coords = next_game_state.self[3]
+                        if new_coords not in visited:
+                            queue.append((new_coords, next_game_state))
+                            visited.add(new_coords)
+                            parent[new_coords] = current_coords
+            return None
+        return None
 
     def _potentially_destroying_opponent(self, bomb_blast_coords: Tuple[int, int]) -> bool:
         if self.others:
@@ -504,19 +536,23 @@ def get_action_idx_from_coords(agent_coords, new_coords):
 def get_stop_criterion_for_thing(thing: str):
     match thing:
         case 'coin':
-            return is_coin
+            return is_coin, exists_coin
         case 'crate':
-            return is_near_crate
+            return is_near_crate, exists_crate
         case 'opponent':
-            return is_opponent_in_blast_range
+            return is_opponent_in_blast_range, exists_opponent
         case 'safety':
-            return is_out_of_danger
+            return is_out_of_danger, exists_safety
         case _:
             raise ValueError(f"Unrecognized criterion: {thing}")
 
 
 def is_coin(game_state: GameState, coords: Tuple[int, int]) -> bool:
     return coords in game_state.coins
+
+
+def exists_coin(game_state: GameState) -> bool:
+    return bool(game_state.coins)
 
 
 def is_near_crate(game_state: GameState, coords: Tuple[int, int]) -> bool:
@@ -528,6 +564,10 @@ def is_near_crate(game_state: GameState, coords: Tuple[int, int]) -> bool:
     return False
 
 
+def exists_crate(game_state: GameState) -> bool:
+    return (np.any(game_state.field == 1))
+
+
 def is_opponent_in_blast_range(game_state: GameState, potential_bomb_coords: Tuple[int, int]) -> bool:
     """Return True if the player is within blast range of the enemy."""
     for opponent in game_state.others:
@@ -536,6 +576,14 @@ def is_opponent_in_blast_range(game_state: GameState, potential_bomb_coords: Tup
     return False
 
 
+def exists_opponent(game_state: GameState) -> bool:
+    return bool(game_state.others)
+
+
 def is_out_of_danger(game_state: GameState, new_coords: Tuple[int, int]) -> bool:
     """Returns true if the player is out of danger. Stop critereon version if is_save_step"""
     return (game_state.is_valid_movement(new_coords) and not game_state.is_dangerous(new_coords))
+
+
+def exists_safety(game_state: GameState) -> bool:
+    return True

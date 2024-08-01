@@ -18,7 +18,7 @@ from collections import deque
 import torch
 
 from ppo import PPOAgent
-from extracted_features import state_to_features
+from agent_code.feature_extraction import state_to_features
 
 
 def setup(self):

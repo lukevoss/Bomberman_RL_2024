@@ -11,7 +11,7 @@ from typing import List
 
 import events as e
 import own_events as own_e
-from extracted_features import state_to_features
+from agent_code.feature_extraction import state_to_features
 from ppo import ACTIONS
 from add_own_events import add_own_events
 

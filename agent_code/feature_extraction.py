@@ -49,44 +49,51 @@ Board is abstracted as a boolean vector of size 20 with each feature as followin
     Additional Ideas:
         - Number of coins left in Game
         - sometimes placing a bomb before running out of danger can trap a opponent between two bombs
-
+        - search for many possible paths and give back more than one action idx (especially for safety!)
+            -> keep searching as long as distance is the same (Safety can search for more)
 
 Author: Luke Voss
 """
-import numpy as np
+import torch
 
-from utils import *
+from agent_code.utils import *
 
 FEATURE_VECTOR_SIZE = 30
 
 
-def state_to_features(game_state: dict, max_opponent_score: int) -> np.array:
-    feature_vector = np.zeros(FEATURE_VECTOR_SIZE)
+def state_to_features(game_state: dict, max_opponent_score: int) -> torch.tensor:
+    feature_vector = torch.zeros(FEATURE_VECTOR_SIZE)
 
     state = GameState(**game_state)
     agent_coords = state.self[3]
 
     # How to get to closest coin
     action_idx_to_coin = state.get_action_idx_to_closest_thing('coin')
-    feature_vector[action_idx_to_coin] = 1
+    if action_idx_to_coin:
+        feature_vector[action_idx_to_coin] = 1
 
     # How to get to closest crate
     action_idx_to_crate = state.get_action_idx_to_closest_thing('crate')
-    feature_vector[action_idx_to_crate + 5] = 1
+    if action_idx_to_crate:
+        feature_vector[action_idx_to_crate + 5] = 1
 
     # How to get in the reach of opponents
     action_idx_to_opponents = state.get_action_idx_to_closest_thing('opponent')
-    feature_vector[action_idx_to_opponents + 10] = 1
+    if action_idx_to_opponents:
+        feature_vector[action_idx_to_opponents + 10] = 1
 
     # How to get to safety
-    action_idx_to_safety = state.get_action_idx_to_closest_thing('safety')
-    feature_vector[action_idx_to_safety + 15] = 1
+    if state.is_dangerous(agent_coords):
+        action_idx_to_safety = state.get_action_idx_to_closest_thing('safety')
+        if action_idx_to_safety:
+            feature_vector[action_idx_to_safety + 15] = 1
 
     # How much danger is estimated in each direction
-    feature_vector[20:25] = state.get_danger_in_each_direction(agent_coords)
+    feature_vector[20:25] = torch.from_numpy(
+        state.get_danger_in_each_direction(agent_coords)).type_as(feature_vector)
 
     # Could we survive a placed bomb?
-    can_reach_safety, _ = state.simulate_own_bomb(agent_coords)
+    can_reach_safety, _ = state.simulate_own_bomb()
     feature_vector[25] = can_reach_safety
 
     # Can we place a bomb?
@@ -101,3 +108,5 @@ def state_to_features(game_state: dict, max_opponent_score: int) -> np.array:
     # Are we currently in the lead?
     own_score = state.self[1]
     feature_vector[29] = own_score > max_opponent_score
+
+    return feature_vector
