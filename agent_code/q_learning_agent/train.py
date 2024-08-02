@@ -14,12 +14,50 @@ import events as e
 import own_events as own_e
 from agent_code.feature_extraction import state_to_features
 from agent_code.add_own_events import add_own_events
-
+from agent_code.q_learning import *
 
 # Hyper parameters:
-SAVE_EVERY_N_EPOCHS = 50
+SAVE_EVERY_N_EPOCHS = 100
 loop = 0
-LR = 1e-3
+LR = 1e-4
+
+GAME_REWARDS = {
+        # SPECIAL EVENTS
+        own_e.CONSTANT_PENALTY: -0.001,
+        own_e.WON_ROUND: 10,
+        own_e.BOMBED_1_TO_2_CRATES: 0,
+        own_e.BOMBED_3_TO_5_CRATES: 0.5,
+        own_e.BOMBED_5_PLUS_CRATES: 0.5,
+        own_e.GOT_IN_LOOP: -0.3,
+        own_e.ESCAPING: 0.03,
+        own_e.OUT_OF_DANGER: 0.05,
+        own_e.NOT_ESCAPING: -0.01,
+        own_e.CLOSER_TO_COIN: 0.05,
+        own_e.AWAY_FROM_COIN: -0.02,
+        own_e.CLOSER_TO_CRATE: 0.01,
+        own_e.AWAY_FROM_CRATE: -0.05,
+        own_e.SURVIVED_STEP: 0,
+        own_e.DESTROY_TARGET: 0.03,
+        own_e.MISSED_TARGET: -0.01,
+        own_e.WAITED_NECESSARILY: 0.05,
+        own_e.WAITED_UNNECESSARILY: -2,
+        own_e.CLOSER_TO_PLAYERS: 0.02,
+        own_e.AWAY_FROM_PLAYERS: -0.01,
+        own_e.SMART_BOMB_DROPPED: 0.7,
+        own_e.DUMB_BOMB_DROPPED: -0.5,
+
+        # DEFAULT EVENTS
+        e.INVALID_ACTION: -1,
+        e.BOMB_DROPPED: 0,
+        e.BOMB_EXPLODED: 0,
+        e.CRATE_DESTROYED: 0.01,
+        e.COIN_FOUND: 0,
+        e.COIN_COLLECTED: 3,
+        e.KILLED_OPPONENT: 6,
+        e.KILLED_SELF: -8,
+        e.GOT_KILLED: -10,
+        e.OPPONENT_ELIMINATED: 0,
+    }
 
 
 def setup_training(self):
@@ -65,8 +103,8 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     is_terminal = False
     reward = reward_from_events(self, events)
 
-    self.agent.training_step(old_feature_state, new_feature_state,
-                             self_action, reward, is_terminal, time_feature_extraction, time_own_events)
+    self.model = _update_model(
+        self, old_game_state, old_feature_state, new_feature_state, self_action, reward)
 
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
@@ -103,9 +141,9 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
     is_terminal = True
 
-    self.agent.training_step(old_feature_state, None, last_action, reward,  is_terminal, 
-                             time_feature_extraction, time_own_events)
-
+    self.model = _update_model(self, last_game_state, old_feature_state, 
+                               None, last_action, reward)
+    
     # Store the model
     n_round = last_game_state['round']
     if (n_round % SAVE_EVERY_N_EPOCHS) == 0:
@@ -126,43 +164,7 @@ def reward_from_events(self, events: List[str]) -> int:
     """
 
 
-    game_rewards = {
-        # SPECIAL EVENTS
-        own_e.CONSTANT_PENALTY: -0.001,
-        own_e.WON_ROUND: 10,
-        own_e.BOMBED_1_TO_2_CRATES: 0,
-        own_e.BOMBED_3_TO_5_CRATES: 0.5,
-        own_e.BOMBED_5_PLUS_CRATES: 0.5,
-        own_e.GOT_IN_LOOP: -0.3,
-        own_e.ESCAPING: 0.03,
-        own_e.OUT_OF_DANGER: 0.05,
-        own_e.NOT_ESCAPING: -0.01,
-        own_e.CLOSER_TO_COIN: 0.05,
-        own_e.AWAY_FROM_COIN: -0.02,
-        own_e.CLOSER_TO_CRATE: 0.01,
-        own_e.AWAY_FROM_CRATE: -0.05,
-        own_e.SURVIVED_STEP: 0,
-        own_e.DESTROY_TARGET: 0.03,
-        own_e.MISSED_TARGET: -0.01,
-        own_e.WAITED_NECESSARILY: 0.05,
-        own_e.WAITED_UNNECESSARILY: -2,
-        own_e.CLOSER_TO_PLAYERS: 0.02,
-        own_e.AWAY_FROM_PLAYERS: -0.01,
-        own_e.SMART_BOMB_DROPPED: 0.7,
-        own_e.DUMB_BOMB_DROPPED: -0.5,
-
-        # DEFAULT EVENTS
-        e.INVALID_ACTION: -1,
-        e.BOMB_DROPPED: 0,
-        e.BOMB_EXPLODED: 0,
-        e.CRATE_DESTROYED: 0.01,
-        e.COIN_FOUND: 0,
-        e.COIN_COLLECTED: 3,
-        e.KILLED_OPPONENT: 6,
-        e.KILLED_SELF: -8,
-        e.GOT_KILLED: -10,
-        e.OPPONENT_ELIMINATED: 0,
-    }
+    
 
     reward_sum = 0
     for event in events:

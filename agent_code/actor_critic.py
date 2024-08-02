@@ -18,17 +18,17 @@ class ActorCriticMLP(nn.Module):
         super(ActorCriticMLP, self).__init__()
 
         self.critic = nn.Sequential(
-            nn.Linear(num_inputs, 250),
+            nn.Linear(num_inputs, 1024),
             nn.ReLU(),
-            nn.Linear(250, hidden_size),
+            nn.Linear(1024, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, 1)
         )
 
         self.actor = nn.Sequential(
-            nn.Linear(num_inputs, 250),
+            nn.Linear(num_inputs, 1024),
             nn.ReLU(),
-            nn.Linear(250, hidden_size),
+            nn.Linear(1024, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, num_outputs),
             nn.Softmax(dim=-1)

@@ -311,6 +311,13 @@ class TestingGameState(unittest.TestCase):
         action_idx = state.get_action_idx_to_closest_thing('safety')
         self.assertEqual(action_idx, 1)
 
+        # Agent is on top of bomb
+        state.field[15,3] == CRATE
+        state.bombs = [((15,2),3)]
+        state.self = ('test_agent', 0, 0, (15, 2))
+        action_idx = state.get_action_idx_to_closest_thing('safety')
+        self.assertEqual(action_idx,ACTIONS.index("UP"))
+
     def test_get_danger_in_each_direction(self):
         state = copy.deepcopy(self.state)
 
@@ -520,14 +527,12 @@ class TestingUtils(unittest.TestCase):
         self.assertFalse(got_in_loop((0, 0), "DOWN", agent_coord_history))
 
     def test_has_destroyed_target(self):
-        events = ['BOMB_EXPLODED', 'KILLED_OPPONENT']
-        self.assertTrue(has_destroyed_target(events))
-
-        events = ['BOMB_EXPLODED', 'CRATE_DESTROYED']
+        events = ['KILLED_OPPONENT']
         self.assertTrue(has_destroyed_target(events))
 
         events = ['CRATE_DESTROYED']
-        self.assertFalse(has_destroyed_target(events))
+        self.assertTrue(has_destroyed_target(events))
+
 
     def test_is_in_game_grid(self):
         self.assertTrue(is_in_game_grid((1, 1)))

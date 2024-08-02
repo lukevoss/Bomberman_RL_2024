@@ -589,3 +589,34 @@ def is_out_of_danger(game_state: GameState, new_coords: Tuple[int, int]) -> bool
 
 def exists_safety(game_state: GameState) -> bool:
     return True
+
+def print_feature_vector(feature_vector):
+    print(feature_vector)
+    action_coin = "None" 
+    action_crate = "None" 
+    action_opponent = "None" 
+    action_safety = "None" 
+    feature_vector = feature_vector.cpu()
+    action_idx = np.where(feature_vector[:5] == 1)[0]
+    if action_idx != None:
+        action_coin = ACTIONS[action_idx[0]]
+    action_idx = np.where(feature_vector[5:10] == 1)[0]
+    if action_idx != None:
+        action_crate = ACTIONS[action_idx[0]]
+    action_idx = np.where(feature_vector[10:15] == 1)[0]
+    if action_idx != None:
+        action_opponent = ACTIONS[action_idx[0]]
+    action_idx = np.where(feature_vector[15:20] == 1)[0]
+    if action_idx != None:
+        action_safety = ACTIONS[action_idx[0]]
+
+    print(f"Action Recommendations: \n Coin:{action_coin}\n Crate:{action_crate}\n Opponent:{action_opponent}\n Safety:{action_safety}")
+    print(f"Danger in each Direction:\n    {feature_vector[20]}    \n{feature_vector[22]}|{feature_vector[24]}|{feature_vector[23]}\n    {feature_vector[21]}    ")
+    print(f"Can survive Bomb: {bool(feature_vector[25])}")
+    print(f"Can place Bomb: {bool(feature_vector[26])}")
+    print(f"Smart Bomb: {bool(feature_vector[27])}")
+    print(f"Opponents left: {feature_vector[28]}")
+    print(f"Currently in the lead: {bool(feature_vector[29])}")
+
+
+    print()

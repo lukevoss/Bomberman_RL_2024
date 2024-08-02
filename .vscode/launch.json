@@ -24,7 +24,7 @@
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/main.py",
-            "args": ["play", "--my-agent","ppo_extracted_features", "--n-rounds", "1000", "--train", "1", "--no-gui"],
+            "args": ["play", "--my-agent","ppo_extracted_features", "--turn-based"],
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}"
         }

@@ -17,10 +17,8 @@ from collections import deque
 
 import torch
 
-from agent_code.ppo import PPOAgent
 from agent_code.feature_extraction import state_to_features
-from agent_code.utils import print_feature_vector
-
+from agent_code.q_learning import *
 
 def setup(self):
     """
@@ -37,10 +35,6 @@ def setup(self):
     """
     # Hyperparameter
     self.MAX_COORD_HISTORY = 7
-    FEATURE_SIZE = 30
-    HIDDEN_SIZE = 256
-    NETWORK_TYPE = 'MLP'
-    PRETRAINED_MODEL = "imitation_model.pt"
 
     self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Model is run on: {self.device}")
@@ -50,11 +44,7 @@ def setup(self):
     # Agent Position history before normalization
     self.agent_coord_history = deque([], self.MAX_COORD_HISTORY)
 
-    self.agent = PPOAgent(pretrained_model=PRETRAINED_MODEL,
-                          input_feature_size=FEATURE_SIZE,
-                          hidden_size=HIDDEN_SIZE,
-                          network_type=NETWORK_TYPE,
-                          device=self.device)
+    self.model = QTable.initialize_q_table(self)
 
 
 def reset_self(self, game_state: dict):
@@ -86,11 +76,6 @@ def act(self, game_state: dict) -> str:
 
     feature_vector = state_to_features(
         game_state, self.max_opponents_score).to(self.device)
-    
-    
     next_action = self.agent.act(feature_vector)
-
-    print_feature_vector(feature_vector)
-    print(f"Action took: {next_action}")
 
     return next_action

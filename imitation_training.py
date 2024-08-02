@@ -10,16 +10,17 @@ import torch
 import torch.nn as nn
 from torch.distributions import Categorical
 from torch.utils.data import Dataset, random_split
+from agent_code.actor_critic import ActorCriticMLP
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 USING_PRETRAINED = False
 MODEL_NAME = 'imitation_model.pt'
 FIELD_SIZE = 15
 FEATURE_SIZE = 7
-NUM_INPUT = FIELD_SIZE * FIELD_SIZE * FEATURE_SIZE
+NUM_INPUT = 30
 NUM_OUTPUT = 6
 HIDDEN_SIZE = 256
-NUM_EPOCHS = 8
+NUM_EPOCHS = 20
 MAX_LR = 1e-3
 START_LR = 1e-3
 BATCH_SIZE = 128
@@ -50,35 +51,6 @@ def init_weights(m):
     if isinstance(m, nn.Linear):
         nn.init.normal_(m.weight, mean=0., std=0.1)
         nn.init.constant_(m.bias, 0.1)
-
-
-class ActorCriticLSTM(nn.Module):
-    def __init__(self, num_inputs, num_outputs, hidden_size, std=0.0):
-        super(ActorCriticLSTM, self).__init__()
-        self.num_inputs = num_inputs
-        self.num_outputs = num_outputs
-
-        self.lstm = nn.LSTMCell(self.num_inputs, hidden_size)
-        self.lstm2 = nn.LSTMCell(hidden_size, hidden_size)
-
-        self.critic_linear = nn.Linear(hidden_size, 1)
-        self.actor_linear = nn.Sequential(
-            nn.Linear(hidden_size, num_outputs),
-            nn.Softmax(dim=-1)
-        )
-
-        self.log_std = nn.Parameter(torch.ones(1, num_outputs) * std)
-
-        self.apply(init_weights)
-
-    def forward(self, x):
-        x, _ = self.lstm(x)
-        x, _ = self.lstm2(x)
-        action_probs = self.actor_linear(x)
-        dist = Categorical(action_probs)
-        value = self.critic_linear(x)
-
-        return dist, value
 
 
 def get_data_loader(expert_dataset, percent_for_training=0.8):
@@ -129,13 +101,13 @@ def main():
     train_loader, val_loader = get_data_loader(expert_dataset)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = ActorCriticLSTM(NUM_INPUT, NUM_OUTPUT, HIDDEN_SIZE).to(device)
+    model = ActorCriticMLP(NUM_INPUT, HIDDEN_SIZE, NUM_OUTPUT).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=START_LR)
 
     for i in range(NUM_EPOCHS):
         print("Epoch: ", i)
-        train(model, device, train_loader, optimizer, criterion)
+        train(model, device, train_loader, criterion, optimizer)
         validation(model, device, val_loader, criterion)
 
     # Store the model

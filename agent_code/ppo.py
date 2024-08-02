@@ -1,6 +1,8 @@
+import os
+import time
+
 import torch
 import numpy as np
-import os
 
 from settings import INPUT_MAP
 from agent_code.actor_critic import ActorCriticLSTM, ActorCriticMLP
@@ -8,9 +10,9 @@ from agent_code.utils import ACTIONS
 
 
 # Hyperparameter
-UPDATE_PPO_AFTER_N_STEPS = 100
-MINI_BATCH_SIZE = 25
-PPO_EPOCHS_PER_EVALUATION = 8
+UPDATE_PPO_AFTER_N_STEPS = 25
+MINI_BATCH_SIZE = 5
+PPO_EPOCHS_PER_EVALUATION = 3
 
 
 class PPOAgent:
@@ -18,7 +20,7 @@ class PPOAgent:
         self.device = device
         self.model = self._initialize_model(
             pretrained_model, input_feature_size, hidden_size, network_type)
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-3)
 
         self.states = []
         self.actions = []
@@ -30,13 +32,16 @@ class PPOAgent:
         self.n_updates = 0
         self.n_rounds = 0
         self.round_rewards = 0
+        self.time_feature_extraction = 0
+        self.time_own_events = 0
+        self.time_training_step = 0
 
         self.train = train
 
     def _initialize_model(self, pretrained_model, input_feature_size, hidden_size, network_type):
         num_outputs = len(INPUT_MAP)
         if pretrained_model:
-            model_path = os.path.join('.\models', pretrained_model)
+            model_path = os.path.join('./models', pretrained_model)
             if not os.path.isfile(model_path):
                 raise FileNotFoundError(f"Pretrained model at {model_path} not found.")
             return self._load_model(model_path, input_feature_size, hidden_size, num_outputs, network_type)
@@ -63,7 +68,7 @@ class PPOAgent:
             raise ValueError(f"Unsupported network type: {network_type}")
 
     @staticmethod
-    def compute_gae(next_value, rewards, masks, values, gamma=0.95, tau=0.95):
+    def compute_gae(next_value, rewards, masks, values, gamma=0.99, tau=0.95):
         """
         Compute General Advantage Estimataion for a sequence of states rewards and value estimates.
         Estimate the advantages of taking actions in a policy
@@ -176,19 +181,25 @@ class PPOAgent:
             idx_action = dist.probs.argmax()  # TODO this correct?
         return ACTIONS[idx_action]
 
-    def training_step(self, old_feature_state, new_feature_state, action_took: str, reward: float, is_terminal: bool):
+    def training_step(self, old_feature_state, new_feature_state, 
+                      action_took: str, reward: float, is_terminal: bool, 
+                      time_feature_extraction, time_own_events):
         self.states.append(old_feature_state.to(self.device))
         idx_action = ACTIONS.index(action_took)
         self.actions.append(idx_action)
         self.rewards.append(reward)
         self.masks.append(1 - is_terminal)
         self.round_rewards += reward
+        self.time_feature_extraction += time_feature_extraction
+        self.time_own_events += time_own_events
+
 
         self.values.append(self.value)
         self.log_probs.append(self.action_logprob.unsqueeze(0))
 
         n_recorded_steps = len(self.actions)
         if (n_recorded_steps % UPDATE_PPO_AFTER_N_STEPS) == 0:
+            start_time = time.time()
             if is_terminal:
                 next_value = 0  # Next value doesn't exist
             else:
@@ -209,13 +220,21 @@ class PPOAgent:
                                    states, actions, log_probs, returns, advantages)
                 self.loss_sum += loss
                 self.n_updates += 1
+            self.time_training_step += (time.time() - start_time)
 
             if self.n_updates == 10:
                 print(' Total rewards of {}, Loss: {}'.format(
                     self.round_rewards/self.n_updates, self.loss_sum/self.n_updates))
+                print('Time spent for each training update:')
+                print(f'Feature Extraction: {self.time_feature_extraction/self.n_updates}')
+                print(f'Add own Events: {self.time_own_events/self.n_updates}')
+                print(f'Updating Model: {self.time_training_step/self.n_updates}')
                 self.round_rewards = 0
                 self.loss_sum = 0
                 self.n_updates = 0
+                self.time_feature_extraction = 0
+                self.time_own_events = 0
+                self.time_training_step = 0
 
             self.states = []
             self.actions = []
@@ -226,9 +245,6 @@ class PPOAgent:
 
             if is_terminal:
                 self.n_rounds += 1
-
-            if self.n_rounds % 100 == 0:
-                self.save_model('ppo_v0')
 
 
     def save_model(self, model_name="ppo_model"):

@@ -69,23 +69,23 @@ def state_to_features(game_state: dict, max_opponents_score: int) -> torch.tenso
 
     # How to get to closest coin
     action_idx_to_coin = state.get_action_idx_to_closest_thing('coin')
-    if action_idx_to_coin:
+    if action_idx_to_coin != None:
         feature_vector[action_idx_to_coin] = 1
 
     # How to get to closest crate
     action_idx_to_crate = state.get_action_idx_to_closest_thing('crate')
-    if action_idx_to_crate:
+    if action_idx_to_crate != None:
         feature_vector[action_idx_to_crate + 5] = 1
 
     # How to get in the reach of opponents
     action_idx_to_opponents = state.get_action_idx_to_closest_thing('opponent')
-    if action_idx_to_opponents:
+    if action_idx_to_opponents != None:
         feature_vector[action_idx_to_opponents + 10] = 1
 
     # How to get to safety
     if state.is_dangerous(agent_coords):
         action_idx_to_safety = state.get_action_idx_to_closest_thing('safety')
-        if action_idx_to_safety:
+        if action_idx_to_safety != None:
             feature_vector[action_idx_to_safety + 15] = 1
 
     # How much danger is estimated in each direction
