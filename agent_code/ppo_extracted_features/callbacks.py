@@ -39,7 +39,7 @@ def setup(self):
     self.MAX_COORD_HISTORY = 7
     HIDDEN_SIZE = 512
     NETWORK_TYPE = 'MLP'
-    PRETRAINED_MODEL = "imitation_model.pt"
+    PRETRAINED_MODEL = "ppo_model.pt"
 
     self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Model is run on: {self.device}")

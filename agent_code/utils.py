@@ -8,6 +8,7 @@ import numpy as np
 import events as e
 import settings as s
 
+ZERO = 0.0
 MOVEMENT_DIRECTIONS = [(0, -1), (0, 1), (-1, 0), (1, 0)
                        ]  # UP, DOWN, LEFT, RIGHT
 DIRECTIONS_AND_WAIT = [(0, -1), (0, 1), (-1, 0), (1, 0), (0, 0)]
@@ -33,6 +34,7 @@ UNSAFE_FIELD = 2
 CRATE = 1
 WALL = -1
 FREE = 0
+NUM_COINS_IN_GAME = 9
 
 EXTREME_DANGER = 1
 HIGH_DANGER = 0.75

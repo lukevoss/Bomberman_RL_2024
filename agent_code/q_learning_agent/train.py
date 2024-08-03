@@ -4,17 +4,23 @@ Implementation of a PPO algorithm with LSTM and MLP networks as Actor Critic
 
 Deep learning approach with strong feature engineering
 """
+import os
 from typing import List
 import time
+import pickle
 
 import numpy as np
 import torch
 
 import events as e
 import own_events as own_e
-from agent_code.feature_extraction import state_to_features
+from agent_code.q_learning_agent.feature_extraction import state_to_features
 from agent_code.add_own_events import add_own_events
 from agent_code.q_learning import *
+
+# path to the QTable models
+cwd = os.path.abspath(os.path.dirname(__file__))
+MODEL_PATH = f"{cwd}/model.pkl"
 
 # Hyper parameters:
 SAVE_EVERY_N_EPOCHS = 100
@@ -94,16 +100,18 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
     # Log Events
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
+    num_coins_already_discovered = len(self.all_coins_game)
+
 
     start_time = time.time()
-    old_feature_state = state_to_features(old_game_state, self.max_opponents_score).to(self.device)
-    new_feature_state = state_to_features(new_game_state, self.max_opponents_score).to(self.device)
+    old_feature_state = state_to_features(old_game_state, num_coins_already_discovered)#.to(self.device)
+    new_feature_state = state_to_features(new_game_state, num_coins_already_discovered)#.to(self.device)
     time_feature_extraction = (time.time() - start_time)
 
     is_terminal = False
     reward = reward_from_events(self, events)
 
-    self.model = _update_model(
+    self.model = update_model(
         self, old_game_state, old_feature_state, new_feature_state, self_action, reward)
 
 
@@ -134,20 +142,22 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
 
     reward = reward_from_events(self, events)
+    num_coins_already_discovered = len(self.all_coins_game)
 
     start_time = time.time()
-    old_feature_state = state_to_features(last_game_state, self.max_opponents_score).to(self.device)
+    old_feature_state = state_to_features(last_game_state, num_coins_already_discovered)#.to(self.device)
     time_feature_extraction = (time.time() - start_time)
 
     is_terminal = True
 
-    self.model = _update_model(self, last_game_state, old_feature_state, 
+    self.model = update_model(self, last_game_state, old_feature_state, 
                                None, last_action, reward)
     
     # Store the model
     n_round = last_game_state['round']
     if (n_round % SAVE_EVERY_N_EPOCHS) == 0:
-        self.agent.save_model()
+        with open(MODEL_PATH, "wb") as file:
+            pickle.dump(self.model, file)
 
 
 def reward_from_events(self, events: List[str]) -> int:
@@ -163,12 +173,11 @@ def reward_from_events(self, events: List[str]) -> int:
     Author: Luke Voss
     """
 
-
     
 
     reward_sum = 0
     for event in events:
-        if event in game_rewards:
-            reward_sum += game_rewards[event]
+        if event in GAME_REWARDS:
+            reward_sum += GAME_REWARDS[event]
     self.logger.info(f"Awarded {reward_sum} for events {', '.join(events)}")
     return reward_sum

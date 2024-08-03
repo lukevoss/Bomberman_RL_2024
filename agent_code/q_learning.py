@@ -2,7 +2,7 @@ import random
 
 import events as e
 import own_events as own_e
-from utils import *
+from agent_code.utils import *
 
 # Training parameters
 LEARNING_RATE = 0.9  # 0.7
@@ -109,7 +109,7 @@ def _greedy_policy(model: dict, state: list) -> str:
     return action
 
 
-def _update_model(self, game_state: GameState, state: list | None, new_state: list | None, action: str | None, reward: float) -> dict:
+def update_model(self, game_state: GameState, state: list | None, new_state: list | None, action: str | None, reward: float) -> dict:
     """Updating the Q_Value ragarding the state and the action the agent choose
 
     Returns:

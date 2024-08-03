@@ -14,6 +14,31 @@ UPDATE_PPO_AFTER_N_STEPS = 32
 MINI_BATCH_SIZE = 8
 PPO_EPOCHS_PER_EVALUATION = 4
 
+def compute_gae_tensors(next_value, rewards, masks, values, gamma=0.99, tau=0.95):
+    """
+    Compute General Advantage Estimation (GAE) for a sequence of rewards and value estimates using PyTorch tensors.
+    Estimate the advantages of taking actions in a policy.
+
+    Parameters:
+        next_value (torch.Tensor): Estimated value of the next state, should be a scalar tensor or a tensor of shape [1].
+        rewards (torch.Tensor): Rewards received at each time step during an episode.
+        masks (torch.Tensor): Binary masks that indicate whether a state is terminal (0) or not (1).
+        values (torch.Tensor): Estimated values for each state encountered during the episode.
+        gamma (float): Discount factor.
+        tau (float): Controls the trade-off between bias and variance in the advantage estimates. Higher -> reduces variance.
+
+    Returns:
+        torch.Tensor: A tensor of GAE values for each time step.
+    """
+    values = torch.cat([values, next_value.unsqueeze(0)], dim=0)
+    gae = 0
+    returns = []
+    for step in reversed(range(len(rewards))):
+        delta = rewards[step] + gamma * values[step + 1] * masks[step] - values[step]
+        gae = delta + gamma * tau * masks[step] * gae
+        returns.insert(0, gae + values[step])
+    return torch.tensor(returns)
+
 def compute_gae(next_value, rewards, masks, values, gamma=0.99, tau=0.95):
     """
     Compute General Advantage Estimataion for a sequence of states rewards and value estimates.
@@ -32,7 +57,7 @@ def compute_gae(next_value, rewards, masks, values, gamma=0.99, tau=0.95):
 
     Author: Luke Voss
     """
-    values = values.append(next_value)
+    values = values + [next_value]
     gae = 0
     returns = []
     for step in reversed(range(len(rewards))):
@@ -204,7 +229,7 @@ class PPOAgent:
                 next_value = 0  # Next value doesn't exist
             else:
                 _, next_value = self.model(new_feature_state)
-            returns = self.compute_gae(next_value, self.rewards,
+            returns = compute_gae(next_value, self.rewards,
                                        self.masks, self.values)
 
             returns = torch.stack(returns).detach()
