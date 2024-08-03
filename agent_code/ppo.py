@@ -10,13 +10,40 @@ from agent_code.utils import ACTIONS
 
 
 # Hyperparameter
-UPDATE_PPO_AFTER_N_STEPS = 25
-MINI_BATCH_SIZE = 5
-PPO_EPOCHS_PER_EVALUATION = 3
+UPDATE_PPO_AFTER_N_STEPS = 32
+MINI_BATCH_SIZE = 8
+PPO_EPOCHS_PER_EVALUATION = 4
+
+def compute_gae(next_value, rewards, masks, values, gamma=0.99, tau=0.95):
+    """
+    Compute General Advantage Estimataion for a sequence of states rewards and value estimates.
+    Estimate the advantages of taking actions in a policy
+
+        Parameter:
+            next_value: estimated value of the next state
+            rewards (list[float]): rewards received at each time step during an episode
+            masks (list[bool]): binary masks that indicate whether a state is terminal (0) or not (1)
+            values (list): estimated values for each state encountered during the episode
+            gamma (float): discount factor
+            tau (float): controls the trade-off between bias and variance in the advantage estimates. Higher -> reduces variance
+
+        Return:  1
+            returns: list of GAE values for current time step 
+
+    Author: Luke Voss
+    """
+    values = values.append(next_value)
+    gae = 0
+    returns = []
+    for step in reversed(range(len(rewards))):
+        delta = rewards[step] + gamma * values[step + 1] * masks[step] - values[step]
+        gae = delta + gamma * tau * masks[step] * gae
+        returns.insert(0, gae + values[step])
+    return returns
 
 
 class PPOAgent:
-    def __init__(self, pretrained_model=None, input_feature_size=30, hidden_size=256, network_type='LSTM', device='cuda', train=True):
+    def __init__(self, pretrained_model=None, input_feature_size = 27, hidden_size=256, network_type='LSTM', device='cuda', train=True):
         self.device = device
         self.model = self._initialize_model(
             pretrained_model, input_feature_size, hidden_size, network_type)
@@ -67,34 +94,6 @@ class PPOAgent:
         else:
             raise ValueError(f"Unsupported network type: {network_type}")
 
-    @staticmethod
-    def compute_gae(next_value, rewards, masks, values, gamma=0.99, tau=0.95):
-        """
-        Compute General Advantage Estimataion for a sequence of states rewards and value estimates.
-        Estimate the advantages of taking actions in a policy
-
-            Parameter:
-                next_value: estimated value of the next state
-                rewards (list[float]): rewards received at each time step during an episode
-                masks (list[bool]): binary masks that indicate whether a state is terminal (0) or not (1)
-                values (list): estimated values for each state encountered during the episode
-                gamma (float): discount factor
-                tau (float): controls the trade-off between bias and variance in the advantage estimates. Higher -> reduces variance
-
-            Return:  1
-                returns: list of GAE values for current time step 
-
-        Author: Luke Voss
-        """
-        values = values + [next_value]
-        gae = 0
-        returns = []
-        for step in reversed(range(len(rewards))):
-            delta = rewards[step] + gamma * values[step + 1] * masks[step] - values[step]
-            gae = delta + gamma * tau * masks[step] * gae
-            returns.insert(0, gae + values[step])
-        return returns
-
     def update(self, ppo_epochs, mini_batch_size, states, actions, log_probs, returns, advantages, clip_param=0.2):
         """
         Update step of the Proximal Policy Optimization (PPO) algorithm. 
@@ -118,17 +117,18 @@ class PPOAgent:
             mean_loss = 0
             batch_size = states.size(0)
             n_updates = ppo_epochs*(batch_size // mini_batch_size)
-            for state, action, old_log_probs, return_, advantage in self._generate_batches(mini_batch_size, states, actions, log_probs, returns, advantages):
-                dist, value = self.model(state)
+            for batch_state, batch_actions, batch_old_log_probs, batch_returns, batch_advantages in self._generate_batches(mini_batch_size, states, actions, log_probs, returns, advantages):
+                dist, estimated_returns = self.model(batch_state)
                 entropy = dist.entropy().mean()
-                new_log_probs = dist.log_prob(action)
+                batch_new_log_probs = dist.log_prob(batch_actions.squeeze(1))
+                batch_new_log_probs = batch_new_log_probs.unsqueeze(1)
 
-                ratio = (new_log_probs - old_log_probs).exp()
-                surr1 = ratio * advantage
+                ratio = (batch_new_log_probs - batch_old_log_probs).exp()
+                surr1 = ratio * batch_advantages
                 surr2 = torch.clamp(ratio, 1.0 - clip_param,
-                                    1.0 + clip_param) * advantage
+                                    1.0 + clip_param) * batch_advantages
                 actor_loss = - torch.min(surr1, surr2).mean()
-                critic_loss = (return_ - value).pow(2).mean()
+                critic_loss = (batch_returns - estimated_returns).pow(2).mean()
 
                 loss = 0.5 * critic_loss + actor_loss - 0.001 * entropy
                 mean_loss += loss

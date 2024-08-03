@@ -18,7 +18,7 @@ from collections import deque
 import torch
 
 from agent_code.ppo import PPOAgent
-from agent_code.feature_extraction import state_to_features
+from agent_code.feature_extraction import state_to_features, FEATURE_VECTOR_SIZE
 from agent_code.utils import print_feature_vector
 
 
@@ -37,8 +37,7 @@ def setup(self):
     """
     # Hyperparameter
     self.MAX_COORD_HISTORY = 7
-    FEATURE_SIZE = 30
-    HIDDEN_SIZE = 256
+    HIDDEN_SIZE = 512
     NETWORK_TYPE = 'MLP'
     PRETRAINED_MODEL = "imitation_model.pt"
 
@@ -46,12 +45,14 @@ def setup(self):
     print(f"Model is run on: {self.device}")
     self.current_round = 0
     self.max_opponents_score = 0
+    self.sum_points_per_game = 0
+    self.last_points = 0
 
     # Agent Position history before normalization
     self.agent_coord_history = deque([], self.MAX_COORD_HISTORY)
 
     self.agent = PPOAgent(pretrained_model=PRETRAINED_MODEL,
-                          input_feature_size=FEATURE_SIZE,
+                          input_feature_size=FEATURE_VECTOR_SIZE,
                           hidden_size=HIDDEN_SIZE,
                           network_type=NETWORK_TYPE,
                           device=self.device)
@@ -74,8 +75,16 @@ def act(self, game_state: dict) -> str:
 
     Author: Luke Voss
     """
+
     if is_new_round(self, game_state):  # TODO Correct?
         reset_self(self, game_state)
+        self.sum_points_per_game += self.last_points
+        round = game_state['round']
+        if ((round-1) % 10) == 0:
+            print(f"\nAverage points per game: {self.sum_points_per_game/10}")
+            self.sum_points_per_game = 0
+
+    self.last_points = game_state['self'][1]
 
     self.agent_coord_history.append(game_state['self'][3])
     living_opponent_scores = [opponent[1] for opponent in game_state['others']]
@@ -90,7 +99,7 @@ def act(self, game_state: dict) -> str:
     
     next_action = self.agent.act(feature_vector)
 
-    print_feature_vector(feature_vector)
-    print(f"Action took: {next_action}")
+    # print_feature_vector(feature_vector)
+    # print(f"Action took: {next_action}")
 
     return next_action

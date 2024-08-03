@@ -29,12 +29,13 @@ def setup(self):
 
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
-
+    self.MAX_COORD_HISTORY = 7
     self.logger.debug('Successfully entered setup code')
     np.random.seed()
     # Fixed length FIFO queues to avoid repeating the same actions
     self.bomb_history = deque([], 5)
     self.coordinate_history = deque([], 20)
+    self.agent_coord_history = deque([], self.MAX_COORD_HISTORY)
     # While this timer is positive, agent will not hunt/attack opponents
     self.ignore_others_timer = 0
     self.current_round = 0
@@ -98,7 +99,7 @@ def reset_self(self):
     # While this timer is positive, agent will not hunt/attack opponents
     self.ignore_others_timer = 0
     self.max_opponents_score = 0
-
+    self.agent_coord_history = deque([], self.MAX_COORD_HISTORY)
 
 def act(self, game_state):
     """
@@ -109,6 +110,7 @@ def act(self, game_state):
         max_living_opponent_score = max(living_opponent_scores)
         self.max_opponents_score = max(
             self.max_opponents_score, max_living_opponent_score)
+    self.agent_coord_history.append(game_state['self'][3])
 
     self.logger.info('Picking action according to rule set')
 

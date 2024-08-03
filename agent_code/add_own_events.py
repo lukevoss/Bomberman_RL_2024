@@ -34,7 +34,7 @@ def add_own_events(old_game_state, self_action, events_src, end_of_round, agent_
             events.append(own_e.NOT_ESCAPING)
 
     if self_action == 'WAIT':
-        if state.waited_necessarily():
+        if state.is_danger_all_around(agent_coords):
             events.append(own_e.WAITED_NECESSARILY)
         else:
             events.append(own_e.WAITED_UNNECESSARILY)

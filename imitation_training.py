@@ -11,19 +11,20 @@ import torch.nn as nn
 from torch.distributions import Categorical
 from torch.utils.data import Dataset, random_split
 from agent_code.actor_critic import ActorCriticMLP
+import agent_code.ppo as ppo
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 USING_PRETRAINED = False
 MODEL_NAME = 'imitation_model.pt'
 FIELD_SIZE = 15
 FEATURE_SIZE = 7
-NUM_INPUT = 30
+NUM_INPUT = 27
 NUM_OUTPUT = 6
-HIDDEN_SIZE = 256
+HIDDEN_SIZE = 512
 NUM_EPOCHS = 20
 MAX_LR = 1e-3
 START_LR = 1e-3
-BATCH_SIZE = 128
+BATCH_SIZE = 64
 
 
 class ExpertDataset(Dataset):
@@ -32,19 +33,24 @@ class ExpertDataset(Dataset):
         file_path = "./expert_data.npz"
 
         data = np.load(file_path)
-        input = torch.from_numpy(data['states']).float()
-        output = torch.from_numpy(data['actions']).float()
 
-        self.X = input
-        self.y = output
+
+        self.states = torch.from_numpy(data['states']).float()
+        self.actions = torch.from_numpy(data['actions']).float()
+        self.masks = torch.from_numpy(data['masks']).float()
+        self.rewards = torch.from_numpy(data['rewards']).float()
+
 
     def __getitem__(self, index):
-        local_x = self.X[index]
-        local_y = self.y[index]
-        return local_x, local_y
+        states = self.states[index]
+        actions = self.actions[index]
+        masks = self.masks[index]
+        rewards = self.rewards[index]
+
+        return states, actions, masks, rewards
 
     def __len__(self):
-        return len(self.y)
+        return len(self.actions)
 
 
 def init_weights(m):
@@ -70,14 +76,30 @@ def get_data_loader(expert_dataset, percent_for_training=0.8):
 
 def train(model, device, train_loader, criterion, optimizer):
     model.train()
-    for batch_idx, (state, action) in enumerate(train_loader):
-        state, action = state.to(device), action.to(device)
+    for _, (state, action, masks, rewards) in enumerate(train_loader):
+        state =  state.to(device)
+        action = action.to(device)
+        masks = masks.to(device)
+        rewards = rewards.to(device)
         optimizer.zero_grad()
 
-        dist, _ = model(state)
+        if masks[-1] == 0:
+            next_value = 0  # Next value doesn't exist
+        else:
+            _, next_value = model(state[-1])
+            
+        dist, estimated_returns = model(state)
+
+        returns = ppo.compute_gae(next_value, rewards,
+                                    masks, estimated_returns)
+
         action_prediction = dist.logits
         action = action.long()
-        loss = criterion(action_prediction, action)
+
+        
+        loss_actor = criterion(action_prediction, action)
+        loss_critic = (returns - estimated_returns).pow(2).mean()
+        loss = loss_actor + loss_critic
         loss.backward()
         optimizer.step()
 
@@ -86,12 +108,30 @@ def validation(model, device, validation_loader, criterion):
     model.eval()
     val_loss = 0
     with torch.no_grad():
-        for state, action in validation_loader:
-            state, action = state.to(device), action.to(device)
-            dist, _ = model(state)
+        for (state, action, masks, rewards) in validation_loader:
+            state =  state.to(device)
+            action = action.to(device)
+            masks = masks.to(device)
+            rewards = rewards.to(device)
+
+            if masks[-1] == 0:
+                next_value = 0  # Next value doesn't exist
+            else:
+                _, next_value = model(state[-1])
+                
+            dist, estimated_returns = model(state)
+
+            returns = ppo.compute_gae(next_value, rewards,
+                                        masks, estimated_returns)
+
             action_prediction = dist.logits
             action = action.long()
-            val_loss += criterion(action_prediction, action)
+
+            
+            loss_actor = criterion(action_prediction, action)
+            loss_critic = (returns - estimated_returns).pow(2).mean()
+            loss = loss_actor + loss_critic
+            val_loss += loss
     val_loss /= len(validation_loader)
     print("Validation Loss: ", val_loss)
 

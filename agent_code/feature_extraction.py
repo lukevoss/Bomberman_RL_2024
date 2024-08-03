@@ -58,7 +58,7 @@ import torch
 
 from agent_code.utils import *
 
-FEATURE_VECTOR_SIZE = 30
+FEATURE_VECTOR_SIZE = 27
 
 
 def state_to_features(game_state: dict, max_opponents_score: int) -> torch.tensor:
@@ -87,26 +87,36 @@ def state_to_features(game_state: dict, max_opponents_score: int) -> torch.tenso
         action_idx_to_safety = state.get_action_idx_to_closest_thing('safety')
         if action_idx_to_safety != None:
             feature_vector[action_idx_to_safety + 15] = 1
+    elif state.is_danger_all_around(agent_coords):
+        feature_vector[19] = 1
 
     # How much danger is estimated in each direction
     feature_vector[20:25] = torch.from_numpy(
         state.get_danger_in_each_direction(agent_coords)).type_as(feature_vector)
 
-    # Could we survive a placed bomb?
+    # Can we place a Bomb and survive it?
     can_reach_safety, _ = state.simulate_own_bomb()
-    feature_vector[25] = can_reach_safety
-
-    # Can we place a bomb?
-    feature_vector[26] = state.self[2]
+    feature_vector[25] = can_reach_safety and state.self[2]
 
     # Is it a perfect spot for a bomb?
-    feature_vector[27] = state.is_perfect_bomb_spot(agent_coords)
+    feature_vector[26] = state.is_perfect_bomb_spot(agent_coords)
 
-    # Normalized Number of living opponent
-    feature_vector[28] = len(state.others) / 3
+    
+    # # Could we survive a placed Bomb
+    # can_reach_safety, _ = state.simulate_own_bomb()
+    # feature_vector[25] = can_reach_safety
 
-    # Are we currently in the lead?
-    own_score = state.self[1]
-    feature_vector[29] = own_score > max_opponents_score
+    # # Can we place a bomb?
+    # feature_vector[26] = state.self[2]
+
+    # # Is it a perfect spot for a bomb?
+    # feature_vector[27] = state.is_perfect_bomb_spot(agent_coords)
+
+    # # Normalized Number of living opponent
+    # feature_vector[28] = len(state.others) / 3
+
+    # # Are we currently in the lead?
+    # own_score = state.self[1]
+    # feature_vector[29] = own_score > max_opponents_score
 
     return feature_vector

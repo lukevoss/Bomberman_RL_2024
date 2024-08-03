@@ -174,39 +174,24 @@ class TestingGameState(unittest.TestCase):
         # Test when step on explosion
         self.assertTrue(state.is_dangerous((3, 3)))
 
-    def test_waited_necessary(self):
+    def test_is_danger_all_around(self):
         state = copy.deepcopy(self.state)
         state.bombs = [((2, 1), 2)]
         state.self = ('test_agent', 0, 1, (1, 2))
+        agent_coords = (1,2)
         state.explosion_map[1, 3] = 1
 
         # Waiting because of bomb and explosion
-        self.assertTrue(state.waited_necessarily())
-        state.explosion_map[1, 3] = 0
+        self.assertTrue(state.is_danger_all_around(agent_coords))
 
         # No need to Wait
-        self.assertFalse(state.waited_necessarily())
+        state.explosion_map[1, 3] = 0
+        self.assertFalse(state.is_danger_all_around(agent_coords))
 
         # Waiting because of only bombs
         state.field[1, 3] = 1
-        self.assertTrue(state.waited_necessarily())
+        self.assertTrue(state.is_danger_all_around(agent_coords))
 
-    def test_is_save_step(self):
-        state = copy.deepcopy(self.state)
-        state.bombs = [((1, 3), 1)]
-        state.explosion_map[2][1] = 1
-
-        # In reach of Bomb
-        self.assertFalse(state.is_save_step((1, 1)))
-
-        # On Explosion
-        self.assertFalse(state.is_save_step((2, 1)))
-
-        # Save Step
-        self.assertTrue(state.is_save_step((5, 1)))
-
-        # Invalid step
-        self.assertFalse(state.is_save_step((0, 0)))
 
     def test_simulate_own_bomb(self):
         state = copy.deepcopy(self.state)

@@ -120,26 +120,24 @@ class GameState:
         return (self.field[step_coords] == FREE and
                 (not step_coords in opponent_positions) and
                 (not step_coords in bomb_positions))
+    
+    # def is_free_tile(self, step_coords: Tuple[int, int]) -> bool:
+    #     return self.field[step_coords] == FREE
 
     def is_dangerous(self, step_coords: Tuple[int, int]) -> bool:
         """Function checks if given position is dangerous"""
         sorted_dangerous_bombs = self.sort_and_filter_out_dangerous_bombs(
             step_coords)
         return self._is_in_explosion(step_coords) or (sorted_dangerous_bombs != [])
+    
+    def is_danger_all_around(self, step_coords: Tuple[int, int]) -> bool:
+        for direction in MOVEMENT_DIRECTIONS:
+            new_coords = move_in_direction(step_coords,direction)
+            if self.is_valid_movement(new_coords) and not self.is_dangerous(new_coords):
+                return False
+        return True
 
-    def waited_necessarily(self) -> bool:
-        """
-        Check if there is an explosion or danger around agent
-        """
-        x_agent, y_agent = self.self[3]
-        return (not self.is_save_step((x_agent+1, y_agent)) and
-                not self.is_save_step((x_agent-1, y_agent)) and
-                not self.is_save_step((x_agent, y_agent+1)) and
-                not self.is_save_step((x_agent, y_agent-1)))
 
-    def is_save_step(self, new_coords: Tuple[int, int]) -> bool:
-        return (self.is_valid_movement(new_coords) and
-                not self.is_dangerous(new_coords))
 
     def simulate_own_bomb(self) -> Tuple[bool, bool]:
         """ Simulate the bomb explosion and evaluate its effects. """
@@ -334,8 +332,7 @@ class GameState:
         blast_coords = [bomb_coords]
         for direction in MOVEMENT_DIRECTIONS:
             for i in range(1, s.BOMB_POWER + 1):
-                new_coords = bomb_coords[0] + direction[0] * \
-                    i, bomb_coords[1] + direction[1] * i
+                new_coords = bomb_coords[0] + direction[0] * i, bomb_coords[1] + direction[1] * i
                 if not is_in_game_grid(new_coords) or self.field[new_coords] == WALL:
                     break
                 blast_coords.append(new_coords)
@@ -612,11 +609,6 @@ def print_feature_vector(feature_vector):
 
     print(f"Action Recommendations: \n Coin:{action_coin}\n Crate:{action_crate}\n Opponent:{action_opponent}\n Safety:{action_safety}")
     print(f"Danger in each Direction:\n    {feature_vector[20]}    \n{feature_vector[22]}|{feature_vector[24]}|{feature_vector[23]}\n    {feature_vector[21]}    ")
-    print(f"Can survive Bomb: {bool(feature_vector[25])}")
-    print(f"Can place Bomb: {bool(feature_vector[26])}")
-    print(f"Smart Bomb: {bool(feature_vector[27])}")
-    print(f"Opponents left: {feature_vector[28]}")
-    print(f"Currently in the lead: {bool(feature_vector[29])}")
-
-
+    print(f"Can survive and place Bomb: {bool(feature_vector[25])}")
+    print(f"Smart Bomb: {bool(feature_vector[26])}")
     print()
