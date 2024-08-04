@@ -48,7 +48,7 @@ from agent_code.utils import *
 FEATURE_VECTOR_SIZE = 22
 
 
-def state_to_features(game_state: dict, num_coins_already_discovered: int) -> torch.tensor:
+def state_to_features(game_state: dict, num_coins_already_discovered: int) -> List:
     feature_vector = [0] * FEATURE_VECTOR_SIZE
 
     state = GameState(**game_state)
@@ -80,9 +80,9 @@ def state_to_features(game_state: dict, num_coins_already_discovered: int) -> to
 
     # Can we place a Bomb and survive it?
     can_reach_safety, _ = state.simulate_own_bomb()
-    feature_vector[20] = can_reach_safety and state.self[2]
+    feature_vector[20] = int(can_reach_safety and state.self[2])
 
     # Is it a perfect spot for a bomb?
-    feature_vector[21] = state.is_perfect_bomb_spot(agent_coords) and feature_vector[20]
+    feature_vector[21] = int(state.is_perfect_bomb_spot(agent_coords) and feature_vector[20])
 
     return feature_vector

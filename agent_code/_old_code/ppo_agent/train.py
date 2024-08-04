@@ -1,14 +1,27 @@
+""" 
+This File is called by the environment and manages the agents training
+Implementation of a PPO algorithm with LSTM and MLP networks as Actor Critic
+
+Deep learning approach without feature engineering:
+Board is representet in 15x15x7 vector
+Symmetry of board is leveraged
+
+Current status:
+Agent learn, but gets stuck on bad local maxima. Behavioral cloning to solve issue, but results are still bad
+Ideas:
+Network not deep enough, reward system not dense enough, feature engeneering maybe nececarry
+
+
+Author: Luke Voss
+"""
+
 import numpy as np
 import torch
-import torch.optim as optim
 
-# from collections import namedtuple, deque
-
-import pickle
 from typing import List
 
 import events as e
-from .callbacks import state_to_features, normalize_state, ACTIONS
+from .callbacks import state_to_features, ACTIONS
 
 SAVE_EVERY_N_EPOCHS = 100
 
@@ -18,7 +31,9 @@ WON_GAME = "Won the game"
 
 #Hyper parameters:
 TRANSITION_HISTORY_SIZE = 20  # keep only ... last transitions
-LR               = 3e-6
+# LR_ACTOR               = 1e-5
+# LR_CRITIC               = 1e-5
+LR = 1e-5
 NUM_STEPS        = 20
 MINI_BATCH_SIZE  = 5
 PPO_EPOCHS       = 4
@@ -97,6 +112,9 @@ def ppo_update(self, ppo_epochs, mini_batch_size, states, actions, log_probs, re
     Author: Luke Voss
     """
     for i in range(ppo_epochs):
+        mean_loss = 0
+        batch_size = states.size(0)
+        n_updates = ppo_epochs*(batch_size // mini_batch_size)
         for state, action, old_log_probs, return_, advantage in ppo_iter(mini_batch_size, states, actions, log_probs, returns, advantages):
             dist, value = self.model(state)
             entropy = dist.entropy().mean()
@@ -105,16 +123,20 @@ def ppo_update(self, ppo_epochs, mini_batch_size, states, actions, log_probs, re
             ratio = (new_log_probs - old_log_probs).exp()
             surr1 = ratio * advantage
             surr2 = torch.clamp(ratio, 1.0 - clip_param, 1.0 + clip_param) * advantage
-            # print("Surr1", surr1)
             actor_loss  = - torch.min(surr1, surr2).mean()
             critic_loss = (return_ - value).pow(2).mean()
-            #print("Actor loss: ",actor_loss)
 
             loss = 0.5 * critic_loss + actor_loss - 0.001 * entropy
+            mean_loss += loss
 
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
+            
+        if n_updates > 0:
+            mean_loss = mean_loss/n_updates
+
+    return mean_loss
 
 def setup_training(self):
     """
@@ -135,10 +157,16 @@ def setup_training(self):
     self.values = []
     self.masks = []
     self.log_probs = []
+    self.loss_sum = 0
+    self.n_updates = 0
 
     self.round_rewards = 0
     
-    self.optimizer = optim.Adam(self.model.parameters(), lr=LR)
+    self.optimizer = torch.optim.Adam(self.model.parameters(),lr=LR)
+    # self.optimizer =  torch.optim.Adam([
+    #                     {'params': self.model.actor.parameters(), 'lr': LR_ACTOR},
+    #                     {'params': self.model.critic.parameters(), 'lr': LR_CRITIC}
+    #                 ])
 
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
@@ -161,22 +189,20 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
     # TODO hand out own rewards and add to rewards list
 
-    # Normalize states and actions
-    _, reverse_action_map = normalize_state(old_game_state)
-    _, _ = normalize_state(new_game_state)
-    normalized_action = reverse_action_map(self_action)
+    normalized_action = self.reverse_action_map(self_action)
     idx_normalized_action = torch.tensor([ACTIONS.index(normalized_action)],device=self.device)
     done = 0
     reward = reward_from_events(self, events)
     self.round_rewards += reward
+
     # Save Tansistions in Lists
-    
     self.states.append(state_to_features(old_game_state).to(self.device))
     self.actions.append(idx_normalized_action)
     self.rewards.append(reward)
     self.values.append(self.value)
     self.masks.append(1 - done)
-    self.log_probs.append(self.dist.log_prob(idx_normalized_action).squeeze())
+    self.log_probs.append(self.action_logprob.unsqueeze(0))
+    
 
     if (new_game_state['step'] % TRANSITION_HISTORY_SIZE) == 0:
         next_state = state_to_features(new_game_state).to(self.device)
@@ -191,7 +217,9 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         advantages = returns - values
 
         # Update step of PPO algorithm
-        ppo_update(self, PPO_EPOCHS, MINI_BATCH_SIZE, states, actions, log_probs, returns, advantages)
+        loss = ppo_update(self, PPO_EPOCHS, MINI_BATCH_SIZE, states, actions, log_probs, returns, advantages)
+        self.loss_sum += loss
+        self.n_updates += 1
 
         self.states = []
         self.actions = []
@@ -225,9 +253,8 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
     n_round = last_game_state['round']
 
-    # Normalize states and actions
-    _, reverse_action_map = normalize_state(last_game_state)
-    normalized_action = reverse_action_map(last_action)
+
+    normalized_action = self.reverse_action_map(last_action)
     idx_normalized_action = torch.tensor([ACTIONS.index(normalized_action)],device=self.device)
     reward = reward_from_events(self, events)
     self.round_rewards += reward
@@ -239,7 +266,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.rewards.append(reward)
     self.values.append(self.value)
     self.masks.append(1-done)
-    self.log_probs.append(self.dist.log_prob(idx_normalized_action).squeeze())
+    self.log_probs.append(self.action_logprob.unsqueeze(0))
     
     next_value = 0 # Next value doesn't exist
     returns = compute_gae(next_value, self.rewards, self.masks, self.values)
@@ -252,7 +279,12 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     advantages = returns - values
 
     # Update step of PPO algorithm
-    ppo_update(self, PPO_EPOCHS, MINI_BATCH_SIZE, states, actions, log_probs, returns, advantages)
+    if states.size(0) > 0:
+        loss = ppo_update(self, PPO_EPOCHS, MINI_BATCH_SIZE, states, actions, log_probs, returns, advantages)
+        self.loss_sum += loss
+        self.n_updates += 1
+    
+    print(' Total rewards of {}, Loss: {}'.format(self.round_rewards,self.loss_sum/self.n_updates))
 
     self.states = []
     self.actions = []
@@ -270,6 +302,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         torch.save(self.model.state_dict(), model_path)
 
 
+
 def reward_from_events(self, events: List[str]) -> int:
     """
     Calculate the Rewards sum from all current events in the game
@@ -284,14 +317,14 @@ def reward_from_events(self, events: List[str]) -> int:
     """
 
     game_rewards = {
-        e.COIN_COLLECTED: -0.25,
-        e.INVALID_ACTION: 0.05,
-        e.KILLED_SELF: -0.1, # It is better to kill himself than to get killed
-        e.GOT_KILLED: 1,
-        e.CRATE_DESTROYED: -0.05,
-        e.KILLED_OPPONENT: -1,
-        CONSTANT_PENALTY : 0.01,
-        WON_GAME: -1
+        e.COIN_COLLECTED: 0.5,
+        e.INVALID_ACTION: -0.01,
+        e.KILLED_SELF: 0.1, # It is better to kill himself than to get killed
+        e.GOT_KILLED: -1,
+        e.CRATE_DESTROYED: 0.1,
+        e.KILLED_OPPONENT: 1,
+        CONSTANT_PENALTY : -0.001,
+        WON_GAME: 1
     }
 
 

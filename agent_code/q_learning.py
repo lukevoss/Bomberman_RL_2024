@@ -46,7 +46,7 @@ GAME_REWARDS = {
     }
 
 class QLearningAgent:
-    def __init__(self, logger, pretrained_model=None, learning_rate=0.9, gamma = 0.99, max_epsilon = 1, min_epsilon = 0.1, decay_rate = 0.0001):
+    def __init__(self, pretrained_model=None, logger = None, learning_rate=0.01, gamma = 0.95, max_epsilon = 1, min_epsilon = 0.05, decay_rate = 0.01):
         self.learning_rate = learning_rate
         self.gamma = gamma
         self.max_epsilon = max_epsilon
@@ -62,7 +62,8 @@ class QLearningAgent:
         if os.path.isfile(model_path):
             with open(model_path, 'rb') as file:
                 self.q_table = pickle.load(file)
-            self.logger.info("Using pretrained model")
+            if self.logger:
+                self.logger.info("Using pretrained model")
         else:
             raise FileNotFoundError(f"Pretrained model at {model_path} not found.")
 
@@ -72,12 +73,14 @@ class QLearningAgent:
         
         if state not in self.q_table or random.uniform(0, 1) <= epsilon:
             action = random.choice(ACTIONS)
-            self.logger.debug(f"Choosing {action} randomly")
+            if self.logger:
+                self.logger.debug(f"Choosing {action} randomly")
             return action
         
         best_action_idx = self._greedy_policy(state)
         action = ACTIONS[best_action_idx]
-        self.logger.debug(f"Choosing {action} from Q-Table")
+        if self.logger:
+            self.logger.debug(f"Choosing {action} from Q-Table")
         return action
     
     def _compute_epsilon(self, n_round):
@@ -99,28 +102,23 @@ class QLearningAgent:
             future_q = 0 # Last action in a game where the next state doesnt exist
         self.q_table[state][action_idx] = current_q + self.learning_rate * (reward + self.gamma * future_q - current_q)
 
-    def training_step(self, state, action, reward, new_state):
-        if state:
-            state = tuple(state)
-            if state not in self.q_table:
-                self.q_table[state] = [0] * len(ACTIONS)
-        else:
-            raise ValueError("Old game state is None")
-        if new_state:
+    def training_step(self, state:List[int], action, reward, new_state: List[int]):
+        state = tuple(state)
+        if state not in self.q_table:
+            self.q_table[state] = [0] * len(ACTIONS)
+
+        if new_state != None:
             new_state = tuple(new_state)
             if new_state not in self.q_table:
                 self.q_table[new_state] = [0] * len(ACTIONS)
 
-
-        if action is None:
-            raise ValueError("Action is none")
-
         action_idx = ACTIONS.index(action)
         if state and new_state:
-            self.update_q_value(tuple(state), action_idx, reward, tuple(new_state))
+            self.update_q_value(state, action_idx, reward, new_state)
 
     def save(self, model_name="q_table.pkl"):
         model_path = os.path.join('./models', model_name)
         with open(model_path, 'wb') as file:
             pickle.dump(self.q_table, file)
-        self.logger.info("Q-table saved to {}".format(model_path))
+        if self.logger:
+            self.logger.info("Q-table saved to {}".format(model_path))
