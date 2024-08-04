@@ -19,11 +19,9 @@ import pickle
 import torch
 
 from agent_code.q_learning_agent.feature_extraction import state_to_features
-from agent_code.q_learning import *
+from agent_code.q_learning import QLearningAgent
 
-# path to the QTable models
-cwd = os.path.abspath(os.path.dirname(__file__))
-MODEL_PATH = f"{cwd}/model.pkl"
+
 
 def setup(self):
     """
@@ -49,13 +47,9 @@ def setup(self):
     # Agent Position history before normalization
     self.agent_coord_history = deque([], self.MAX_COORD_HISTORY)
 
-    if os.path.exists(MODEL_PATH):
-        with open(MODEL_PATH, 'rb') as file:
-            self.model = pickle.load(file)
-        print("Using pretained model")
-    else:
-        self.model = QTable.initialize_q_table(self)
-        print("Using new model")
+    self.agent = QLearningAgent(self.logger, pretrained_model=None)
+
+    
 
 
 def reset_self(self, game_state: dict):
@@ -75,7 +69,6 @@ def act(self, game_state: dict) -> str:
 
     Author: Luke Voss
     """
-    print(len(self.model))
     if is_new_round(self, game_state):  # TODO Correct?
         reset_self(self, game_state)
 
@@ -91,44 +84,8 @@ def act(self, game_state: dict) -> str:
     feature_vector = state_to_features(
         game_state, num_coins_already_discovered)#.to(self.device)
     
-
-    state = tuple(feature_vector)
+    return self.agent.act(feature_vector, 
+                          n_round = game_state["round"], 
+                          train = self.train)
     
-    if  self.model.get(state): # If the state has been already ecountered
-        model_result = self.model[state]
-        if model_result.values() is not None: # If the encountered state has values in it for the actions
-             
-            random_int = random.uniform(0,1)
-            if self.train:# If in training MODE
-                epsilon = MIN_EPSILON + (MAX_EPSILON - MIN_EPSILON) * np.exp(-DECAY_RATE * game_state['round'])
-                self.logger.debug(f"Randomness is at {epsilon}")
-
-                if random_int <= epsilon: # Go for random action for a decreasing percentage of randomness
-                    action = random.choice(ACTIONS)# without bomb
-                    self.logger.debug(f"***************Choosing  {action}  purely at random in {state} ")
-                    return action
-                # Choose from the Q_Table the best action that is stored, if more than one best action, choose one randomly
-                max_value = max(model_result.values())
-                possible_actions = [key for key, val in model_result.items() if abs(max_value - val) < 1e-4]
-                action = random.choice(possible_actions)
-                self.logger.info(f"Picking {action} from state {state}.")
-                self.logger.info(f"Number of encountered states: {len(self.model)}  in round: {game_state['round']}.")
-                return action
-            # Having some randomness even if there is best action 
-            # epsilon =  MIN_EPSILON + (MAX_EPSILON - MIN_EPSILON) * np.exp(-DECAY_RATE * game_state['step']) #
-            epsilon = .01
-            if random_int <= epsilon:
-                action = random.choice(ACTIONS)
-                self.logger.debug(f"*************Choosing {action} purely at random in {state}")
-                return action
-            # Choosing from Q_Table
-            action = np.argmax(list(model_result.values()))
-            action = ACTIONS[action]
-            self.logger.info(f"Picking {action} from state {state}.")
-            return action
-    else:
-        # Add the new state to the q_table
-        action = random.choice(ACTIONS)
-        self.model[state]= dict.fromkeys(ACTIONS, ZERO)
-        # print(state)
-        return action
+    

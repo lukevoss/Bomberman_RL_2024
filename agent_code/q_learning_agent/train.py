@@ -108,12 +108,9 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     new_feature_state = state_to_features(new_game_state, num_coins_already_discovered)#.to(self.device)
     time_feature_extraction = (time.time() - start_time)
 
-    is_terminal = False
     reward = reward_from_events(self, events)
 
-    self.model = update_model(
-        self, old_game_state, old_feature_state, new_feature_state, self_action, reward)
-
+    self.agent.training_step(old_feature_state, self_action, reward, new_feature_state)
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
     """
@@ -148,16 +145,13 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     old_feature_state = state_to_features(last_game_state, num_coins_already_discovered)#.to(self.device)
     time_feature_extraction = (time.time() - start_time)
 
-    is_terminal = True
-
-    self.model = update_model(self, last_game_state, old_feature_state, 
-                               None, last_action, reward)
+    self.agent.training_step(old_feature_state, last_action, reward, None)
     
     # Store the model
     n_round = last_game_state['round']
     if (n_round % SAVE_EVERY_N_EPOCHS) == 0:
-        with open(MODEL_PATH, "wb") as file:
-            pickle.dump(self.model, file)
+        print(f"Saving table of length {len(self.agent.q_table)}")
+        self.agent.save()
 
 
 def reward_from_events(self, events: List[str]) -> int:

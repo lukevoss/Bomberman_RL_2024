@@ -1,17 +1,11 @@
+import os
 import random
+import pickle
 
 import events as e
 import own_events as own_e
 from agent_code.utils import *
 
-# Training parameters
-LEARNING_RATE = 0.9  # 0.7
-# Environment parameters
-GAMMA = 0.99  # 0.95
-# Exploration parameters
-MAX_EPSILON = 1  # 1
-MIN_EPSILON = 0.1  # 0.1
-DECAY_RATE = 0.0001  # 0.001
 
 GAME_REWARDS = {
         # SPECIAL EVENTS
@@ -51,96 +45,82 @@ GAME_REWARDS = {
         e.OPPONENT_ELIMINATED: 0,
     }
 
-class QTable():
-    """
-        the structure of the q_table is a linked dictionary to reduce the domain of search
-        {state:{actions: Q_value}} --> e.g: {feature:{'LEFT':-0.95}},
-        Features are binary
-        one example of one row from q_table at time of initializing:
-        { 0, 0, 0, ... , 0, 0, 0): {'UP': 0,'RIGHT': 0,'DOWN': 0,'LEFT': 0,'WAIT': 0,'BOMB': 0}
+class QLearningAgent:
+    def __init__(self, logger, pretrained_model=None, learning_rate=0.9, gamma = 0.99, max_epsilon = 1, min_epsilon = 0.1, decay_rate = 0.0001):
+        self.learning_rate = learning_rate
+        self.gamma = gamma
+        self.max_epsilon = max_epsilon
+        self.min_epsilon = min_epsilon
+        self.decay_rate = decay_rate
+        self.q_table = {}
+        self.logger = logger
+        if pretrained_model:
+            self.load_pretrained_model(pretrained_model)
 
-    """
+    def load_pretrained_model(self, model_name):
+        model_path = os.path.join('./models', model_name)
+        if os.path.isfile(model_path):
+            with open(model_path, 'rb') as file:
+                self.q_table = pickle.load(file)
+            self.logger.info("Using pretrained model")
+        else:
+            raise FileNotFoundError(f"Pretrained model at {model_path} not found.")
 
-    def __init__(self, game_state: GameState):
-        super(QTable, self).__init__()
-        self.game_state = game_state
-
-    def initialize_q_table(self) -> dict:
-        """initializing an empty qtable
-        Returns:
-            dict: dictionary of {state:{actions: Q_value}}
-        """
-        features_dict = {}
-
-        return features_dict
+    def act(self, feature_vector, n_round, train=True):
+        state = tuple(feature_vector)
+        epsilon = self._compute_epsilon(n_round) if train else 0
+        
+        if state not in self.q_table or random.uniform(0, 1) <= epsilon:
+            action = random.choice(ACTIONS)
+            self.logger.debug(f"Choosing {action} randomly")
+            return action
+        
+        best_action_idx = self._greedy_policy(state)
+        action = ACTIONS[best_action_idx]
+        self.logger.debug(f"Choosing {action} from Q-Table")
+        return action
     
-def _epsilon_greedy_policy(model: dict, state: list,  epsilon: float) -> str:
-    """
-    With a Probability of 1 - ɛ, we do exploitation, and with the probability ɛ,
-    we do exploration. 
-    In the epsilon_greedy_policy we will:
-    1-Generate the random number between 0 to 1.
-    2-If the random number is greater than epsilon, we will do exploitation.
-        It means that the agent will take the action with the highest value given
-        a state.
-    3-Else, we will do exploration (Taking random action). 
+    def _compute_epsilon(self, n_round):
+        """Compute epsilon for the epsilon-greedy policy based on the round number."""
+        return self.min_epsilon + (self.max_epsilon - self.min_epsilon) * np.exp(-self.decay_rate * n_round)
+    
+    def _greedy_policy(self, state):
+        """Select the action with the highest value from the Q-table. If more than one choose randomly"""
+        action_values = self.q_table[state]
+        max_value = max(action_values)
+        best_actions_idx = [index for index, value in enumerate(action_values) if value == max_value]
+        return random.choice(best_actions_idx)
 
-    """
-    random_int = random.uniform(0, 1)
-    if state and random_int > epsilon:
-        action = _greedy_policy(model, state)
-    else:
-        action = random.choice(ACTIONS)
-    return action
+    def update_q_value(self, state, action_idx, reward, new_state):
+        current_q = self.q_table[state][action_idx]
+        if new_state:
+            future_q = max(self.q_table[new_state], default=0)
+        else:
+            future_q = 0 # Last action in a game where the next state doesnt exist
+        self.q_table[state][action_idx] = current_q + self.learning_rate * (reward + self.gamma * future_q - current_q)
 
-
-def _greedy_policy(model: dict, state: list) -> str:
-    """
-    Q-learning is an off-policy algorithm which means that the policy of 
-    taking action and updating function is different.
-    In this example, the Epsilon Greedy policy is acting policy, and 
-    the Greedy policy is updating policy.
-    The Greedy policy will also be the final policy when the agent is trained.
-    It is used to select the highest state and action value from the Q-Table.
-    """
-    state = tuple(state)
-    action = np.argmax(model[state])
-    action = ACTIONS[action]
-    return action
+    def training_step(self, state, action, reward, new_state):
+        if state:
+            state = tuple(state)
+            if state not in self.q_table:
+                self.q_table[state] = [0] * len(ACTIONS)
+        else:
+            raise ValueError("Old game state is None")
+        if new_state:
+            new_state = tuple(new_state)
+            if new_state not in self.q_table:
+                self.q_table[new_state] = [0] * len(ACTIONS)
 
 
-def update_model(self, game_state: GameState, state: list | None, new_state: list | None, action: str | None, reward: float) -> dict:
-    """Updating the Q_Value ragarding the state and the action the agent choose
+        if action is None:
+            raise ValueError("Action is none")
 
-    Returns:
-        dict of state and actions
-    """
-    epsilon = MIN_EPSILON + (MAX_EPSILON - MIN_EPSILON) * \
-        np.exp(-DECAY_RATE * game_state['step'])  # Updating must be per step
-    # end of the game
-    if game_state is None:
-        pass
+        action_idx = ACTIONS.index(action)
+        if state and new_state:
+            self.update_q_value(tuple(state), action_idx, reward, tuple(new_state))
 
-    if state:  # if state is not None
-        state = tuple(state)
-    if not action:  # if action is None go for random action
-        action = _epsilon_greedy_policy(self.model, state, epsilon)
-
-    if new_state:  # if New_state is not None, which means we haven't invalid action
-        new_state = tuple(new_state)
-
-    # invalid action or not such state in the model then penalize the agent with invalid action
-    if new_state is None or self.model.get(new_state) is None:
-        self.model[state][action] = self.model[state][action] + (
-            LEARNING_RATE*(reward + GAMMA * (GAME_REWARDS[e.INVALID_ACTION]) - self.model[state][action]))
-
-    # if action is valid, update the Q_value of that state_action
-    elif (self.model[state][action] is not None) and new_state:
-
-        model_new_result = self.model[new_state]
-        max_result = max(model_new_result.values())
-
-        self.model[state][action] = self.model[state][action] + LEARNING_RATE*(
-            reward + GAMMA * max_result - self.model[state][action])
-
-    return self.model
+    def save(self, model_name="q_table.pkl"):
+        model_path = os.path.join('./models', model_name)
+        with open(model_path, 'wb') as file:
+            pickle.dump(self.q_table, file)
+        self.logger.info("Q-table saved to {}".format(model_path))
