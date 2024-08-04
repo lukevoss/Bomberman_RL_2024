@@ -46,7 +46,7 @@ GAME_REWARDS = {
     }
 
 class QLearningAgent:
-    def __init__(self, pretrained_model=None, logger = None, learning_rate=0.01, gamma = 0.95, max_epsilon = 1, min_epsilon = 0.05, decay_rate = 0.01):
+    def __init__(self, pretrained_model=None, logger = None, learning_rate=0.1, gamma = 0.99, max_epsilon = 1, min_epsilon = 0.08, decay_rate = 1):
         self.learning_rate = learning_rate
         self.gamma = gamma
         self.max_epsilon = max_epsilon
