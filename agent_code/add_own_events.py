@@ -2,6 +2,45 @@ from agent_code.utils import *
 import events as e
 import own_events as own_e
 
+GAME_REWARDS = {
+        # SPECIAL EVENTS
+        own_e.CONSTANT_PENALTY: -0.001,
+        own_e.WON_ROUND: 10,
+        own_e.BOMBED_1_TO_2_CRATES: 0,
+        own_e.BOMBED_3_TO_5_CRATES: 0,
+        own_e.BOMBED_5_PLUS_CRATES: 0,
+        own_e.GOT_IN_LOOP: 0, # only for ppo -0.3,
+        own_e.ESCAPING: 0.03,
+        own_e.OUT_OF_DANGER: 0.05,
+        own_e.NOT_ESCAPING: -0.01,
+        own_e.GOT_INTO_DANGER: -0.05,
+        own_e.CLOSER_TO_COIN: 0.05,
+        own_e.AWAY_FROM_COIN: -0.02,
+        own_e.CLOSER_TO_CRATE: 0.01,
+        own_e.AWAY_FROM_CRATE: -0.05,
+        own_e.SURVIVED_STEP: 0,
+        own_e.DESTROY_TARGET: 0.03,
+        own_e.MISSED_TARGET: -0.01,
+        own_e.WAITED_NECESSARILY: 0.1,
+        own_e.WAITED_UNNECESSARILY: -2,
+        own_e.CLOSER_TO_PLAYERS: 0.02,
+        own_e.AWAY_FROM_PLAYERS: -0.01,
+        own_e.SMART_BOMB_DROPPED: 0.7,
+        own_e.DUMB_BOMB_DROPPED: -0.5,
+
+        # DEFAULT EVENTS
+        e.INVALID_ACTION: -1,
+        e.BOMB_DROPPED: 0,
+        e.BOMB_EXPLODED: 0,
+        e.CRATE_DESTROYED: 0.01,
+        e.COIN_FOUND: 0,
+        e.COIN_COLLECTED: 3,
+        e.KILLED_OPPONENT: 7,
+        e.KILLED_SELF: -8,
+        e.GOT_KILLED: -10,
+        e.OPPONENT_ELIMINATED: 0,
+    }
+
 
 def add_own_events(old_game_state, self_action, events_src, end_of_round, agent_coord_history, max_opponents_score) -> list:
 
@@ -32,6 +71,12 @@ def add_own_events(old_game_state, self_action, events_src, end_of_round, agent_
             events.append(own_e.ESCAPING)
         else:
             events.append(own_e.NOT_ESCAPING)
+    else:
+        new_agents_coords = march_forward(agent_coords,self_action)
+        if state.is_dangerous(new_agents_coords):
+            events.append(own_e.GOT_INTO_DANGER)
+
+    
 
     if self_action == 'WAIT':
         if state.is_danger_all_around(agent_coords):

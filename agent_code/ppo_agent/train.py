@@ -12,8 +12,8 @@ import torch
 
 import events as e
 import own_events as own_e
-from agent_code.feature_extraction import state_to_features
-from agent_code.add_own_events import add_own_events
+from agent_code.feature_extraction import state_to_features_large
+from agent_code.add_own_events import add_own_events, GAME_REWARDS
 
 
 # Hyper parameters:
@@ -58,8 +58,8 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
 
     start_time = time.time()
-    old_feature_state = state_to_features(old_game_state, self.max_opponents_score).to(self.device)
-    new_feature_state = state_to_features(new_game_state, self.max_opponents_score).to(self.device)
+    old_feature_state = state_to_features_large(old_game_state, self.max_opponents_score).to(self.device)
+    new_feature_state = state_to_features_large(new_game_state, self.max_opponents_score).to(self.device)
     time_feature_extraction = (time.time() - start_time)
 
     is_terminal = False
@@ -98,7 +98,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     reward = reward_from_events(self, events)
 
     start_time = time.time()
-    old_feature_state = state_to_features(last_game_state, self.max_opponents_score).to(self.device)
+    old_feature_state = state_to_features_large(last_game_state, self.max_opponents_score).to(self.device)
     time_feature_extraction = (time.time() - start_time)
 
     is_terminal = True
@@ -124,49 +124,9 @@ def reward_from_events(self, events: List[str]) -> int:
 
     Author: Luke Voss
     """
-
-
-    game_rewards = {
-        # SPECIAL EVENTS
-        own_e.CONSTANT_PENALTY: -0.001,
-        own_e.WON_ROUND: 10,
-        own_e.BOMBED_1_TO_2_CRATES: 0,
-        own_e.BOMBED_3_TO_5_CRATES: 0.5,
-        own_e.BOMBED_5_PLUS_CRATES: 0.5,
-        own_e.GOT_IN_LOOP: -0.3,
-        own_e.ESCAPING: 0.03,
-        own_e.OUT_OF_DANGER: 0.05,
-        own_e.NOT_ESCAPING: -0.01,
-        own_e.CLOSER_TO_COIN: 0.05,
-        own_e.AWAY_FROM_COIN: -0.02,
-        own_e.CLOSER_TO_CRATE: 0.01,
-        own_e.AWAY_FROM_CRATE: -0.05,
-        own_e.SURVIVED_STEP: 0,
-        own_e.DESTROY_TARGET: 0.03,
-        own_e.MISSED_TARGET: -0.01,
-        own_e.WAITED_NECESSARILY: 0.05,
-        own_e.WAITED_UNNECESSARILY: -2,
-        own_e.CLOSER_TO_PLAYERS: 0.02,
-        own_e.AWAY_FROM_PLAYERS: -0.01,
-        own_e.SMART_BOMB_DROPPED: 0.7,
-        own_e.DUMB_BOMB_DROPPED: -0.5,
-
-        # DEFAULT EVENTS
-        e.INVALID_ACTION: -1,
-        e.BOMB_DROPPED: 0,
-        e.BOMB_EXPLODED: 0,
-        e.CRATE_DESTROYED: 0.01,
-        e.COIN_FOUND: 0,
-        e.COIN_COLLECTED: 3,
-        e.KILLED_OPPONENT: 6,
-        e.KILLED_SELF: -8,
-        e.GOT_KILLED: -10,
-        e.OPPONENT_ELIMINATED: 0,
-    }
-
     reward_sum = 0
     for event in events:
-        if event in game_rewards:
-            reward_sum += game_rewards[event]
+        if event in GAME_REWARDS:
+            reward_sum += GAME_REWARDS[event]
     self.logger.info(f"Awarded {reward_sum} for events {', '.join(events)}")
     return reward_sum

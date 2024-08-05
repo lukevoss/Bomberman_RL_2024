@@ -18,7 +18,7 @@ import pickle
 
 import torch
 
-from agent_code.q_learning_agent.feature_extraction import state_to_features
+from agent_code.feature_extraction import state_to_very_small_features
 from agent_code.q_learning import QLearningAgent
 
 
@@ -81,7 +81,7 @@ def act(self, game_state: dict) -> str:
                 self.all_coins_game.append(coin)
 
     num_coins_already_discovered = len(self.all_coins_game)
-    feature_vector = state_to_features(
+    feature_vector = state_to_very_small_features(
         game_state, num_coins_already_discovered)#.to(self.device)
     
     return self.agent.act(feature_vector, 

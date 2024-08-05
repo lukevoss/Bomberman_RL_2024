@@ -6,6 +6,7 @@ import own_events as own_e
 from agent_code.utils import *
 from agent_code.add_own_events import add_own_events
 
+#TODO test got into Danger
 
 class TestingAddOwnEvents(unittest.TestCase):
     def setUp(self):

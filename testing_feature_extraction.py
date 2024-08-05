@@ -4,7 +4,7 @@ import numpy as np
 import torch
 
 from agent_code.utils import *
-from agent_code.feature_extraction import state_to_features
+from agent_code.feature_extraction import state_to_features_large
 
 # TODO way to safety is up, thus action idx = 0
 
@@ -24,7 +24,7 @@ class TestingFeatureExtraction(unittest.TestCase):
         }
 
     def test_empty_state(self):
-        feature_vector = state_to_features(
+        feature_vector = state_to_features_large(
             self.game_state, max_opponents_score=1)
         ground_truth = torch.zeros(30)
         ground_truth[20] = 1
@@ -41,7 +41,7 @@ class TestingFeatureExtraction(unittest.TestCase):
         state["others"] = [('opponent', 0, 1, (4, 1))]
         state["self"] = ('test_agent', 4, 0, (1, 1))
 
-        feature_vector = state_to_features(
+        feature_vector = state_to_features_large(
             state, max_opponents_score=0)
         ground_truth = torch.zeros(30)
         ground_truth[1] = 1
@@ -70,7 +70,7 @@ class TestingFeatureExtraction(unittest.TestCase):
         state["coins"] = [(3, 7)]
         state["others"] = [('opponent', 0, 1, (1, 7))]
         state["self"] = ('test_agent', 4, 0, (1, 15))
-        feature_vector = state_to_features(
+        feature_vector = state_to_features_large(
             state, max_opponents_score=0)
         ground_truth = torch.zeros(30)
 

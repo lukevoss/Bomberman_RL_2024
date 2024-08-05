@@ -544,6 +544,8 @@ def get_stop_criterion_for_thing(thing: str):
             return is_opponent_in_blast_range, exists_opponent
         case 'safety':
             return is_out_of_danger, exists_safety
+        case 'next_to_opponent':
+            return is_next_to_opponent, exists_opponent
         case _:
             raise ValueError(f"Unrecognized criterion: {thing}")
 
@@ -573,6 +575,15 @@ def is_opponent_in_blast_range(game_state: GameState, potential_bomb_coords: Tup
     """Return True if the player is within blast range of the enemy."""
     for opponent in game_state.others:
         if opponent[3] in game_state._get_blast_effected_coords(potential_bomb_coords):
+            return True
+    return False
+
+def is_next_to_opponent(game_state:GameState, step_coords: Tuple[int, int]):
+    """Return if step location is directly next to opponent"""
+    opponents_coords = [opponent[3] for opponent in game_state.others]
+    for direction in MOVEMENT_DIRECTIONS:
+        new_coords = move_in_direction(step_coords, direction)
+        if new_coords in opponents_coords:
             return True
     return False
 

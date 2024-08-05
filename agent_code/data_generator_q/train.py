@@ -1,6 +1,6 @@
 """ 
 This Agent acts as data generator. The rule_based_agent acts as expert predictor. 
-This file save the state action pair file .npz file in each step of the game
+This file save the state,action,events,next state pairs as a .npz file in each step of the game
 
 Author: Luke Voss
 """
@@ -12,7 +12,7 @@ from typing import List
 
 import events as e
 from agent_code.utils import ACTIONS
-from agent_code.q_learning_agent.feature_extraction import state_to_features, FEATURE_VECTOR_SIZE
+from agent_code.feature_extraction import state_to_very_small_features_imitation
 from agent_code.add_own_events import add_own_events
 
 
@@ -55,8 +55,8 @@ def game_events_occurred(self, old_game_state: dict, expert_action: str, new_gam
     action_idx = ACTIONS.index(expert_action)
     num_coins_already_discovered = len(self.all_coins_game)
 
-    old_feature_state = state_to_features(old_game_state, num_coins_already_discovered)
-    new_feature_state = state_to_features(new_game_state, num_coins_already_discovered)
+    old_feature_state = state_to_very_small_features_imitation(old_game_state, num_coins_already_discovered)
+    new_feature_state = state_to_very_small_features_imitation(new_game_state, num_coins_already_discovered)
 
     events = add_own_events(old_game_state, expert_action, events, True, self.agent_coord_history, self.max_opponents_score)
 
@@ -88,8 +88,8 @@ def end_of_round(self, last_game_state: dict, last_expert_action: str, events: L
     num_coins_already_discovered = len(self.all_coins_game)
     action_idx = ACTIONS.index(last_expert_action)
 
-    feature_state = state_to_features(last_game_state, num_coins_already_discovered)
-    new_feature_state = [-1] * FEATURE_VECTOR_SIZE
+    feature_state = state_to_very_small_features_imitation(last_game_state, num_coins_already_discovered)
+    new_feature_state = [-1] * 20
     events = add_own_events(last_game_state, last_expert_action, events, True, self.agent_coord_history, self.max_opponents_score)
 
     np.savez_compressed("./data/expert_data_{}.npz".format(self.data_count),

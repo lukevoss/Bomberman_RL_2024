@@ -18,7 +18,7 @@ from collections import deque
 import torch
 
 from agent_code.ppo import PPOAgent
-from agent_code.feature_extraction import state_to_features, FEATURE_VECTOR_SIZE
+from agent_code.feature_extraction import state_to_features_large, FEATURE_VECTOR_SIZE
 from agent_code.utils import print_feature_vector
 
 
@@ -93,7 +93,7 @@ def act(self, game_state: dict) -> str:
         self.max_opponents_score = max(
             self.max_opponents_score, max_living_opponent_score)
 
-    feature_vector = state_to_features(
+    feature_vector = state_to_features_large(
         game_state, self.max_opponents_score).to(self.device)
     
     
