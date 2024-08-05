@@ -282,6 +282,12 @@ class TestingGameState(unittest.TestCase):
         action_idx = state.get_action_idx_to_closest_thing('opponent')
         self.assertEqual(action_idx, 4)
 
+        # Next to opponent
+        action_idx = state.get_action_idx_to_closest_thing('next_to_opponent')
+        self.assertEqual(action_idx, 1)
+
+
+
         # Opponent not in blast range
         state.others = [('opponent', 0, 1, (1, 7))]
         action_idx = state.get_action_idx_to_closest_thing('opponent')

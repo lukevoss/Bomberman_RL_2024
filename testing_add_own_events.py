@@ -68,6 +68,14 @@ class TestingAddOwnEvents(unittest.TestCase):
                                 self.end_of_round, self.agent_coord_history, self.max_opponents_score)
         self.assertIn(own_e.OUT_OF_DANGER, result)
 
+    def got_into_danger(self):
+        state = copy.deepcopy(self.old_game_state)
+        state['bombs']= [((1,5),2)]
+        result = add_own_events(state, 'DOWN', self.events_src,
+                                self.end_of_round, self.agent_coord_history, self.max_opponents_score)
+        self.assertIn(own_e.GOT_INTO_DANGER, result)
+
+        
     def test_waited_necessarily(self):
         state = copy.deepcopy(self.old_game_state)
         state['explosion_map'][2, 1] = 1

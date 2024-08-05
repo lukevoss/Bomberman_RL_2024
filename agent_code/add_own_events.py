@@ -142,3 +142,11 @@ def add_own_events(old_game_state, self_action, events_src, end_of_round, agent_
             events.append(own_e.BOMBED_1_TO_2_CRATES)
 
     return events
+
+def reward_from_events(events: List[str]) -> int:
+
+    reward_sum = 0
+    for event in events:
+        if event in GAME_REWARDS:
+            reward_sum += GAME_REWARDS[event]
+    return reward_sum
