@@ -6,6 +6,7 @@ import events as e
 import own_events as own_e
 from agent_code.utils import *
 
+lr_imitation_learning = 0.00001
 
 GAME_REWARDS = {
         # SPECIAL EVENTS
@@ -46,7 +47,7 @@ GAME_REWARDS = {
     }
 
 class QLearningAgent:
-    def __init__(self, pretrained_model=None, logger = None, learning_rate=0.1, gamma = 0.99, max_epsilon = 1, min_epsilon = 0.08, decay_rate = 1):
+    def __init__(self, pretrained_model=None, logger = None, learning_rate=0.3, gamma = 0.99, max_epsilon = 0.7, min_epsilon = 0.1, decay_rate = 0.001):
         self.learning_rate = learning_rate
         self.gamma = gamma
         self.max_epsilon = max_epsilon

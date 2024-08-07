@@ -47,7 +47,7 @@ def setup(self):
     # Agent Position history before normalization
     self.agent_coord_history = deque([], self.MAX_COORD_HISTORY)
 
-    self.agent = QLearningAgent(pretrained_model="imitation_q_table.pkl", logger=self.logger)
+    self.agent = QLearningAgent(pretrained_model="q_table_good.pkl", logger=self.logger)
 
     
 

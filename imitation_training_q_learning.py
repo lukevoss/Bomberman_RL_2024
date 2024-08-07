@@ -1,6 +1,8 @@
 import logging
 import numpy as np
 
+from tqdm import tqdm
+
 from agent_code.q_learning import QLearningAgent
 from agent_code.utils import ACTIONS
 
@@ -10,7 +12,7 @@ NUM_EPOCHS = 1
 
 def train(agent, train_dataset):
 
-    for _, (old_state, action_idx, rewards, new_state) in enumerate(train_dataset):
+    for _, (old_state, action_idx, rewards, new_state) in tqdm(enumerate(train_dataset),desc="Training Q-Table"):
         if (new_state == -1).any():
             new_state = None
         else:
