@@ -50,15 +50,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
     Author: Luke Voss
     """
-    # Hand out self shaped events
-    start_time = time.time()
-    events = add_own_events(old_game_state, 
-                            self_action,
-                            events,
-                            end_of_round=False,
-                            agent_coord_history=self.agent_coord_history,
-                            max_opponents_score=self.max_opponents_score)
-    time_own_events = (time.time() - start_time)
+   
 
     # Log Events
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
@@ -69,6 +61,17 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     old_feature_state = state_to_very_small_features(old_game_state, num_coins_already_discovered)#.to(self.device)
     new_feature_state = state_to_very_small_features(new_game_state, num_coins_already_discovered)#.to(self.device)
     time_feature_extraction = (time.time() - start_time)
+
+    # Hand out self shaped events
+    start_time = time.time()
+    events = add_own_events(old_game_state, 
+                            old_feature_state,
+                            self_action,
+                            events,
+                            end_of_round=False,
+                            agent_coord_history=self.agent_coord_history,
+                            max_opponents_score=self.max_opponents_score)
+    time_own_events = (time.time() - start_time)
 
     reward = reward_from_events(self, events)
 
@@ -87,15 +90,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
     Author: Luke Voss
     """
-    # Hand out self shaped events
-    start_time = time.time()
-    events = add_own_events(last_game_state, 
-                            last_action,
-                            events,
-                            end_of_round=False,
-                            agent_coord_history=self.agent_coord_history,
-                            max_opponents_score=self.max_opponents_score)
-    time_own_events = (time.time() - start_time)
+    
 
     # Log Events
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
@@ -106,6 +101,17 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     start_time = time.time()
     old_feature_state = state_to_very_small_features(last_game_state, num_coins_already_discovered)#.to(self.device)
     time_feature_extraction = (time.time() - start_time)
+
+    # Hand out self shaped events
+    start_time = time.time()
+    events = add_own_events(last_game_state,
+                            old_feature_state, 
+                            last_action,
+                            events,
+                            end_of_round=False,
+                            agent_coord_history=self.agent_coord_history,
+                            max_opponents_score=self.max_opponents_score)
+    time_own_events = (time.time() - start_time)
 
     self.agent.training_step(old_feature_state, last_action, reward, None)
     

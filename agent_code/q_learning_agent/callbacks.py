@@ -47,7 +47,7 @@ def setup(self):
     # Agent Position history before normalization
     self.agent_coord_history = deque([], self.MAX_COORD_HISTORY)
 
-    self.agent = QLearningAgent(pretrained_model="q_table_good.pkl", logger=self.logger)
+    self.agent = QLearningAgent(pretrained_model="q_table.pkl", logger=self.logger)
 
     
 
@@ -63,13 +63,13 @@ def is_new_round(self, game_state: dict) -> bool:
 
 
 def act(self, game_state: dict) -> str:
-    """
+    """ b 
     Agent parses the input, thinks, and take a decision.
     When not in training mode, the maximum execution time for this method is 0.5s.
 
     Author: Luke Voss
     """
-    if is_new_round(self, game_state):  # TODO Correct?
+    if is_new_round(self, game_state): 
         reset_self(self, game_state)
 
     self.agent_coord_history.append(game_state['self'][3])

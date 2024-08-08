@@ -7,6 +7,7 @@ from agent_code.utils import *
 from agent_code.add_own_events import add_own_events
 
 #TODO test got into Danger
+# TODO waited necessaryly also when eait in danger
 
 class TestingAddOwnEvents(unittest.TestCase):
     def setUp(self):
@@ -73,7 +74,7 @@ class TestingAddOwnEvents(unittest.TestCase):
         state['bombs']= [((1,5),2)]
         result = add_own_events(state, 'DOWN', self.events_src,
                                 self.end_of_round, self.agent_coord_history, self.max_opponents_score)
-        self.assertIn(own_e.GOT_INTO_DANGER, result)
+        self.assertIn(own_e.IS_IN_DANGER, result)
 
         
     def test_waited_necessarily(self):

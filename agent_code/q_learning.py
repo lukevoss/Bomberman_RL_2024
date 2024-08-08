@@ -8,46 +8,8 @@ from agent_code.utils import *
 
 lr_imitation_learning = 0.00001
 
-GAME_REWARDS = {
-        # SPECIAL EVENTS
-        own_e.CONSTANT_PENALTY: -0.001,
-        own_e.WON_ROUND: 10,
-        own_e.BOMBED_1_TO_2_CRATES: 0,
-        own_e.BOMBED_3_TO_5_CRATES: 0.5,
-        own_e.BOMBED_5_PLUS_CRATES: 0.5,
-        own_e.GOT_IN_LOOP: -0.3,
-        own_e.ESCAPING: 0.03,
-        own_e.OUT_OF_DANGER: 0.05,
-        own_e.NOT_ESCAPING: -0.01,
-        own_e.CLOSER_TO_COIN: 0.05,
-        own_e.AWAY_FROM_COIN: -0.02,
-        own_e.CLOSER_TO_CRATE: 0.01,
-        own_e.AWAY_FROM_CRATE: -0.05,
-        own_e.SURVIVED_STEP: 0,
-        own_e.DESTROY_TARGET: 0.03,
-        own_e.MISSED_TARGET: -0.01,
-        own_e.WAITED_NECESSARILY: 0.05,
-        own_e.WAITED_UNNECESSARILY: -2,
-        own_e.CLOSER_TO_PLAYERS: 0.02,
-        own_e.AWAY_FROM_PLAYERS: -0.01,
-        own_e.SMART_BOMB_DROPPED: 0.7,
-        own_e.DUMB_BOMB_DROPPED: -0.5,
-
-        # DEFAULT EVENTS
-        e.INVALID_ACTION: -1,
-        e.BOMB_DROPPED: 0,
-        e.BOMB_EXPLODED: 0,
-        e.CRATE_DESTROYED: 0.01,
-        e.COIN_FOUND: 0,
-        e.COIN_COLLECTED: 3,
-        e.KILLED_OPPONENT: 6,
-        e.KILLED_SELF: -8,
-        e.GOT_KILLED: -10,
-        e.OPPONENT_ELIMINATED: 0,
-    }
-
 class QLearningAgent:
-    def __init__(self, pretrained_model=None, logger = None, learning_rate=0.3, gamma = 0.99, max_epsilon = 0.7, min_epsilon = 0.1, decay_rate = 0.001):
+    def __init__(self, pretrained_model=None, logger = None, learning_rate=0.9, gamma = 0.99, max_epsilon = 0.9, min_epsilon = 0.1, decay_rate = 0.001):
         self.learning_rate = learning_rate
         self.gamma = gamma
         self.max_epsilon = max_epsilon
@@ -71,16 +33,20 @@ class QLearningAgent:
     def act(self, feature_vector, n_round, train=True):
         state = tuple(feature_vector)
         epsilon = self._compute_epsilon(n_round) if train else 0
+        if self.logger:
+            print_very_small_feature_vector(feature_vector, self.logger)
         
         if state not in self.q_table or random.uniform(0, 1) <= epsilon:
             action = random.choice(ACTIONS)
             if self.logger:
+                self.logger.debug(f"Q-Table Before: {self.q_table[state]}")
                 self.logger.debug(f"Choosing {action} randomly")
             return action
         
         best_action_idx = self._greedy_policy(state)
         action = ACTIONS[best_action_idx]
         if self.logger:
+            self.logger.debug(f"Q-Table Before: {self.q_table[state]}")
             self.logger.debug(f"Choosing {action} from Q-Table")
         return action
     
@@ -101,7 +67,12 @@ class QLearningAgent:
             future_q = max(self.q_table[new_state], default=0)
         else:
             future_q = 0 # Last action in a game where the next state doesnt exist
-        self.q_table[state][action_idx] = current_q + self.learning_rate * (reward + self.gamma * future_q - current_q)
+        update_step = current_q + self.learning_rate * (reward + self.gamma * future_q - current_q)
+        if self.logger:
+            self.logger.debug(f"Updated Action {action_idx} with new value: {update_step}")
+        self.q_table[state][action_idx] = update_step
+        if self.logger:
+            self.logger.debug(f"Q-Table After: {self.q_table[state]}")
 
     def training_step(self, state:List[int], action, reward, new_state: List[int]):
         state = tuple(state)
