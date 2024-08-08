@@ -16,6 +16,7 @@ import settings as s
 from agents import Agent, SequentialAgentBackend
 from fallbacks import pygame
 from items import Coin, Explosion, Bomb
+from evaluation import evaluate_performance
 
 WorldArgs = namedtuple("WorldArgs",
                        ["no_gui", "fps", "turn_based", "update_interval", "save_replay", "replay", "make_video", "continue_without_training", "log_dir", "save_stats", "match_name", "seed", "silence_errors", "scenario"])
@@ -338,6 +339,16 @@ class GenericWorld:
                 name.parent.mkdir(parents=True)
             with open(name, "w") as file:
                 json.dump(results, file, indent=4, sort_keys=True)
+            
+            full_evaluation_file_name = file_name.replace(".json", "_full.json")
+            full_evaluation, plot = evaluate_performance(results)
+            
+            plot.savefig(full_evaluation_file_name.replace(".json", ".png"))
+            
+            self.logger.info(f'Full evaluation: {full_evaluation}')
+            
+            with open(Path(full_evaluation_file_name), "w") as file:
+                json.dump(full_evaluation, file, indent=4, sort_keys=True)
 
 
 class BombeRLeWorld(GenericWorld):
