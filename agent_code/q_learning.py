@@ -6,10 +6,9 @@ import events as e
 import own_events as own_e
 from agent_code.utils import *
 
-lr_training = 0.9
 
 class QLearningAgent:
-    def __init__(self, pretrained_model=None, logger = None, learning_rate=lr_training, gamma = 0.99, max_epsilon = 0.9, min_epsilon = 0.1, decay_rate = 0.001):
+    def __init__(self, pretrained_model=None, logger = None, learning_rate=0.9, gamma = 0.99, max_epsilon = 0.9, min_epsilon = 0.1, decay_rate = 0.0001):
         self.learning_rate = learning_rate
         self.gamma = gamma
         self.max_epsilon = max_epsilon
@@ -84,8 +83,8 @@ class QLearningAgent:
                 self.q_table[new_state] = [0] * len(ACTIONS)
 
         action_idx = ACTIONS.index(action)
-        if state and new_state:
-            self.update_q_value(state, action_idx, reward, new_state)
+
+        self.update_q_value(state, action_idx, reward, new_state)
 
     def save(self, model_name="q_table.pkl"):
         model_path = os.path.join('./models', model_name)
