@@ -22,7 +22,7 @@ GAME_REWARDS = {
         # own_e.DESTROY_TARGET: 0.03,
         # own_e.MISSED_TARGET: -0.01,
         own_e.WAITED_NECESSARILY: 0.1,
-        own_e.WAITED_UNNECESSARILY: -5,
+        own_e.WAITED_UNNECESSARILY: -2,
         own_e.CLOSER_TO_PLAYERS: 0.02,
         own_e.AWAY_FROM_PLAYERS: -0.01,
         own_e.SMART_BOMB_DROPPED: 0.7,

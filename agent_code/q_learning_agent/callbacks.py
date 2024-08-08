@@ -48,7 +48,7 @@ def setup(self):
     self.agent_coord_history = deque([], self.MAX_COORD_HISTORY)
 
     # Learning rate von 0.1 funktioniert gut, ist aber recht langsam
-    self.agent = QLearningAgent(pretrained_model="q_table.pkl", logger=self.logger, learning_rate=0.2)
+    self.agent = QLearningAgent(pretrained_model="q_table.pkl", logger=self.logger, learning_rate=0.3)
 
     
 
