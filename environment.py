@@ -86,8 +86,7 @@ class GenericWorld:
             match_prefix = f"{self.args.match_name} | "
         else:
             match_prefix = ""
-        self.round_id = f'{match_prefix}Round {
-            new_round:02d} ({datetime.now().strftime("%Y-%m-%d %H-%M-%S")})'
+        self.round_id = f'{match_prefix}Round {new_round:02d} ({datetime.now().strftime("%Y-%m-%d %H-%M-%S")})'
 
         # Arena with wall and crate layout
         self.arena, self.coins, self.active_agents = self.build_arena()
@@ -145,10 +144,8 @@ class GenericWorld:
             agent.x += 1
             agent.add_event(e.MOVED_RIGHT)
         elif action == 'BOMB' and agent.bombs_left:
-            self.logger.info(f'Agent <{agent.name}> drops bomb at {
-                             (agent.x, agent.y)}')
-            self.bombs.append(Bomb((agent.x, agent.y), agent,
-                              s.BOMB_TIMER, s.BOMB_POWER, agent.bomb_sprite))
+            self.logger.info(f'Agent <{agent.name}> drops bomb at {(agent.x, agent.y)}')
+            self.bombs.append(Bomb((agent.x, agent.y), agent, s.BOMB_TIMER, s.BOMB_POWER, agent.bomb_sprite))
             agent.bombs_left = False
             agent.add_event(e.BOMB_DROPPED)
         elif action == 'WAIT':
@@ -189,8 +186,7 @@ class GenericWorld:
                 for a in self.active_agents:
                     if a.x == coin.x and a.y == coin.y:
                         coin.collectable = False
-                        self.logger.info(f'Agent <{a.name}> picked up coin at {
-                                         (a.x, a.y)} and receives 1 point')
+                        self.logger.info(f'Agent <{a.name}> picked up coin at {(a.x, a.y)} and receives 1 point')
                         a.update_score(s.REWARD_COIN)
                         a.add_event(e.COIN_COLLECTED)
                         a.trophies.append(Trophy.coin_trophy)
@@ -218,8 +214,7 @@ class GenericWorld:
         for bomb in self.bombs:
             if bomb.timer <= 0:
                 # Explode when timer is finished
-                self.logger.info(f'Agent <{bomb.owner.name}>\'s bomb at {
-                                 (bomb.x, bomb.y)} explodes')
+                self.logger.info(f'Agent <{bomb.owner.name}>\'s bomb at {(bomb.x, bomb.y)} explodes')
                 bomb.owner.add_event(e.BOMB_EXPLODED)
                 blast_coords = bomb.get_blast_coords(self.arena)
 
@@ -263,8 +258,7 @@ class GenericWorld:
                             explosion.owner.trophies.append(
                                 Trophy.suicide_trophy)
                         else:
-                            self.logger.info(f'Agent <{a.name}> blown up by agent <{
-                                             explosion.owner.name}>\'s bomb')
+                            self.logger.info(f'Agent <{a.name}> blown up by agent <{explosion.owner.name}>\'s bomb')
                             self.logger.info(
                                 f'Agent <{explosion.owner.name}> receives 1 point')
                             explosion.owner.update_score(s.REWARD_KILL)
@@ -337,8 +331,7 @@ class GenericWorld:
             elif self.args.match_name is not None:
                 file_name = f'results/{self.args.match_name}.json'
             else:
-                file_name = f'results/{
-                    datetime.now().strftime("%Y-%m-%d %H-%M-%S")}.json'
+                file_name = f'results/{datetime.now().strftime("%Y-%m-%d %H-%M-%S")}.json'
 
             name = Path(file_name)
             if not name.parent.exists():
@@ -468,13 +461,11 @@ class BombeRLeWorld(GenericWorld):
                     action = "ERROR"
                     think_time = float("inf")
 
-                self.logger.info(f'Agent <{a.name}> chose action {
-                                 action} in {think_time:.2f}s.')
+                self.logger.info(f'Agent <{a.name}> chose action {action} in {think_time:.2f}s.')
                 if think_time > a.available_think_time:
                     next_think_time = a.base_timeout - \
                         (think_time - a.available_think_time)
-                    self.logger.warning(f'Agent <{a.name}> exceeded think time by {
-                                        think_time - a.available_think_time:.2f}s. Setting action to "WAIT" and decreasing available time for next round to {next_think_time:.2f}s.')
+                    self.logger.warning(f'Agent <{a.name}> exceeded think time by {think_time - a.available_think_time:.2f}s. Setting action to "WAIT" and decreasing available time for next round to {next_think_time:.2f}s.')
                     action = "WAIT"
                     a.trophies.append(Trophy.time_trophy)
                     a.available_think_time = next_think_time
@@ -483,8 +474,7 @@ class BombeRLeWorld(GenericWorld):
                         f'Agent <{a.name}> stayed within acceptable think time.')
                     a.available_think_time = a.base_timeout
             else:
-                self.logger.info(f'Skipping agent <{
-                                 a.name}> because of last slow think time.')
+                self.logger.info(f'Skipping agent <{a.name}> because of last slow think time.')
                 a.available_think_time += a.base_timeout
                 action = "WAIT"
 
@@ -526,8 +516,7 @@ class BombeRLeWorld(GenericWorld):
         # Save course of the game for future replay
         if self.args.save_replay:
             self.replay['n_steps'] = self.step
-            name = f'replays/{
-                self.round_id}.pt' if self.args.save_replay is True else self.args.save_replay
+            name = f'replays/{self.round_id}.pt' if self.args.save_replay is True else self.args.save_replay
             with open(name, 'wb') as f:
                 pickle.dump(self.replay, f)
 
