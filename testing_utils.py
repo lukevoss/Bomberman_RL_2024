@@ -286,8 +286,6 @@ class TestingGameState(unittest.TestCase):
         action_idx = state.get_action_idx_to_closest_thing('next_to_opponent')
         self.assertEqual(action_idx, 1)
 
-
-
         # Opponent not in blast range
         state.others = [('opponent', 0, 1, (1, 7))]
         action_idx = state.get_action_idx_to_closest_thing('opponent')
@@ -308,6 +306,7 @@ class TestingGameState(unittest.TestCase):
         state.self = ('test_agent', 0, 0, (15, 2))
         action_idx = state.get_action_idx_to_closest_thing('safety')
         self.assertEqual(action_idx,ACTIONS.index("UP"))
+
 
     def test_get_danger_in_each_direction(self):
         state = copy.deepcopy(self.state)

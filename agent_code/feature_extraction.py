@@ -82,6 +82,8 @@ def state_to_features_large(game_state: dict, max_opponents_score: int, num_coin
         action_idx_to_crate = state.get_action_idx_to_closest_thing('crate')
         if action_idx_to_crate != None:
             feature_vector[action_idx_to_crate + 10] = 1
+    elif num_coins_already_discovered > NUM_COINS_IN_GAME:
+        raise ValueError("Number of discovered coins cant be that high")
 
     # How to get in the reach of opponents
     action_idx_to_opponents = state.get_action_idx_to_closest_thing('opponent')
@@ -176,6 +178,8 @@ def state_to_small_features(game_state: dict, num_coins_already_discovered: int)
         action_idx_to_crate = state.get_action_idx_to_closest_thing('crate')
         if action_idx_to_crate != None:
             feature_vector[action_idx_to_crate + 5] = 1
+    elif num_coins_already_discovered > NUM_COINS_IN_GAME:
+        raise ValueError("Number of discovered coins cant be that high")
 
     # How to get in the reach of opponents
     action_idx_to_opponents = state.get_action_idx_to_closest_thing('opponent')
@@ -322,6 +326,8 @@ def state_to_very_small_features(game_state: dict, num_coins_already_discovered:
         action_idx_to_crate = state.get_action_idx_to_closest_thing('crate')
         if action_idx_to_crate != None:
             feature_vector[action_idx_to_crate + 5] = 1
+    elif num_coins_already_discovered > NUM_COINS_IN_GAME:
+        raise ValueError("Number of discovered coins can't be that high")
 
     # How to get in the reach of opponents
     action_idx_to_opponents = state.get_action_idx_to_closest_thing('opponent')
@@ -337,8 +343,8 @@ def state_to_very_small_features(game_state: dict, num_coins_already_discovered:
     can_reach_safety, _ = state.simulate_own_bomb()
     feature_vector[19] = int(can_reach_safety and state.self[2])
 
-    if feature_vector == [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]:
-        pass
+    # if feature_vector == [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]:
+    #     pass
 
 
     return feature_vector
