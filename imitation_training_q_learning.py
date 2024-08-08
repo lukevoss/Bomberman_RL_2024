@@ -48,7 +48,7 @@ def main():
     len_dataset = len(actions_idx)
     train_size = int(len_dataset*0.8)
 
-    agent = QLearningAgent()
+    agent = QLearningAgent(pretrained_model="q_table.pkl", learning_rate=0.00001)
     train_dataset = list(zip(old_states[:train_size], actions_idx[:train_size], rewards[:train_size], new_states[:train_size]))
     val_dataset = list(zip(old_states[train_size:], actions_idx[train_size:], rewards[train_size:], new_states[train_size:]))
 

@@ -15,21 +15,21 @@ GAME_REWARDS = {
         own_e.NOT_ESCAPING: -0.01,
         own_e.IS_IN_DANGER: -0.05,
         own_e.CLOSER_TO_COIN: 0.05,
-        #own_e.AWAY_FROM_COIN: -0.02,
+        own_e.AWAY_FROM_COIN: -0.02,
         own_e.CLOSER_TO_CRATE: 0.01,
-        #own_e.AWAY_FROM_CRATE: -0.05,
+        own_e.AWAY_FROM_CRATE: -0.05,
         own_e.SURVIVED_STEP: 0,
-        own_e.DESTROY_TARGET: 0.03,
-        own_e.MISSED_TARGET: -0.01,
+        # own_e.DESTROY_TARGET: 0.03,
+        # own_e.MISSED_TARGET: -0.01,
         own_e.WAITED_NECESSARILY: 0.1,
         own_e.WAITED_UNNECESSARILY: -2,
         own_e.CLOSER_TO_PLAYERS: 0.02,
-        #own_e.AWAY_FROM_PLAYERS: -0.01,
+        own_e.AWAY_FROM_PLAYERS: -0.01,
         own_e.SMART_BOMB_DROPPED: 0.7,
         own_e.DUMB_BOMB_DROPPED: -8,
 
         # DEFAULT EVENTS
-        e.INVALID_ACTION: -2,
+        e.INVALID_ACTION: -10,
         e.BOMB_DROPPED: 0,
         e.BOMB_EXPLODED: 0,
         e.CRATE_DESTROYED: 0.01,
@@ -89,10 +89,10 @@ def add_own_events(old_game_state, old_feature_vector, self_action, events_src, 
     elif self_action == 'BOMB':
         if is_bomb_possible:
             can_reach_safety, is_effective = state.simulate_own_bomb()
-            if not can_reach_safety:
-                events.append(own_e.DUMB_BOMB_DROPPED)
-            elif is_effective:
+            if can_reach_safety and is_effective:
                 events.append(own_e.SMART_BOMB_DROPPED)
+            else:
+                events.append(own_e.DUMB_BOMB_DROPPED)
 
     else:
         if got_in_loop(agent_coords, self_action, agent_coord_history):
@@ -106,6 +106,8 @@ def add_own_events(old_game_state, old_feature_vector, self_action, events_src, 
             action_idx = np.argmax(direction_to_opponent)
             if self_action == ACTIONS[action_idx]:
                 events.append(own_e.CLOSER_TO_PLAYERS)
+            else:
+                events.append(own_e.AWAY_FROM_PLAYERS)
 
         # if sorted_opponents:
         #     closest_opponent = sorted_opponents[0]
@@ -122,6 +124,8 @@ def add_own_events(old_game_state, old_feature_vector, self_action, events_src, 
             action_idx = np.argmax(direction_to_coin)
             if self_action == ACTIONS[action_idx]:
                 events.append(own_e.CLOSER_TO_COIN)
+            else:
+                events.append(own_e.AWAY_FROM_COIN)
 
         # sorted_coins = state.get_coins_sorted_by_distance(agent_coords)
         # if sorted_coins:
@@ -139,6 +143,8 @@ def add_own_events(old_game_state, old_feature_vector, self_action, events_src, 
             action_idx = np.argmax(direction_to_crate)
             if self_action == ACTIONS[action_idx]:
                 events.append(own_e.CLOSER_TO_CRATE)
+            else:
+                events.append(own_e.AWAY_FROM_CRATE)
 
         # closest_crate = state.find_closest_crate(agent_coords)
         # if closest_crate:
@@ -148,11 +154,11 @@ def add_own_events(old_game_state, old_feature_vector, self_action, events_src, 
         #     elif increased_distance(agent_coords, new_agents_coords, crate_coords):
         #         events.append(own_e.AWAY_FROM_CRATE)
 
-    if e.BOMB_EXPLODED in events:
-        if has_destroyed_target(events):
-            events.append(own_e.DESTROY_TARGET)
-        else:
-            events.append(own_e.MISSED_TARGET)
+    # if e.BOMB_EXPLODED in events:
+    #     if has_destroyed_target(events):
+    #         events.append(own_e.DESTROY_TARGET)
+    #     else:
+    #         events.append(own_e.MISSED_TARGET)
 
     # if e.CRATE_DESTROYED in events:
     #     number_of_crates_destroyed = events.count(e.CRATE_DESTROYED)

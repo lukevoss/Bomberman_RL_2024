@@ -337,5 +337,8 @@ def state_to_very_small_features(game_state: dict, num_coins_already_discovered:
     can_reach_safety, _ = state.simulate_own_bomb()
     feature_vector[19] = int(can_reach_safety and state.self[2])
 
+    if feature_vector == [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]:
+        pass
+
 
     return feature_vector

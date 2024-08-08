@@ -24,7 +24,7 @@
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/main.py",
-            "args": ["play", "--my-agent","q_learning_agent", "--train", "1", "--n-rounds", "10000", "--no-gui"],
+            "args": ["play", "--my-agent","q_learning_agent", "--train", "1", "--n-rounds", "10000"],
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}"
         }

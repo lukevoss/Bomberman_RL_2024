@@ -47,7 +47,7 @@ def setup(self):
     # Agent Position history before normalization
     self.agent_coord_history = deque([], self.MAX_COORD_HISTORY)
 
-    self.agent = QLearningAgent(pretrained_model="q_table.pkl", logger=self.logger)
+    self.agent = QLearningAgent(pretrained_model=None, logger=self.logger, learning_rate=0.9)
 
     
 
@@ -56,6 +56,7 @@ def reset_self(self, game_state: dict):
     self.agent_coord_history = deque([], self.MAX_COORD_HISTORY)
     self.current_round = game_state["round"]
     self.max_opponents_score = 0
+    self.all_coins_game = []
 
 
 def is_new_round(self, game_state: dict) -> bool:
