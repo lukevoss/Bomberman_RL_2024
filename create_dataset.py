@@ -12,7 +12,7 @@ def main():
 
     input_dir = "./agent_code/data_generator_q/data"
     npz_files = [f for f in os.listdir(input_dir) if f.endswith('.npz')]
-    N_DATASET = 225000
+    N_DATASET = 62000
     FEATURE_VECTOR_SIZE = 20
 
     all_states = np.zeros((N_DATASET,FEATURE_VECTOR_SIZE))

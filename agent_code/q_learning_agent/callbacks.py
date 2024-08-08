@@ -47,7 +47,8 @@ def setup(self):
     # Agent Position history before normalization
     self.agent_coord_history = deque([], self.MAX_COORD_HISTORY)
 
-    self.agent = QLearningAgent(pretrained_model="q_table.pkl", logger=self.logger, learning_rate=0.9)
+    # Learning rate von 0.1 funktioniert gut, ist aber recht langsam
+    self.agent = QLearningAgent(pretrained_model="q_table.pkl", logger=self.logger, learning_rate=0.2)
 
     
 

@@ -8,7 +8,7 @@ from agent_code.utils import *
 
 
 class QLearningAgent:
-    def __init__(self, pretrained_model=None, logger = None, learning_rate=0.9, gamma = 0.99, max_epsilon = 0.9, min_epsilon = 0.1, decay_rate = 0.0001):
+    def __init__(self, pretrained_model=None, logger = None, learning_rate=0.1, gamma = 0.99, max_epsilon = 0.2, min_epsilon = 0.05, decay_rate = 0.0001):
         self.learning_rate = learning_rate
         self.gamma = gamma
         self.max_epsilon = max_epsilon
@@ -77,7 +77,7 @@ class QLearningAgent:
         if state not in self.q_table:
             self.q_table[state] = [0] * len(ACTIONS)
 
-        if new_state != None:
+        if new_state != None: 
             new_state = tuple(new_state)
             if new_state not in self.q_table:
                 self.q_table[new_state] = [0] * len(ACTIONS)
