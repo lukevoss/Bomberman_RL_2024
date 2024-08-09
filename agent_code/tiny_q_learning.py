@@ -7,8 +7,8 @@ import own_events as own_e
 from agent_code.utils import *
 
 
-class QLearningAgent:
-    def __init__(self, pretrained_model=None, logger = None, learning_rate=0.1, gamma = 0.8, max_epsilon = 0.8, min_epsilon = 0.1, decay_rate = 0.0001):
+class TinyQLearningAgent:
+    def __init__(self, pretrained_model=None, logger = None, learning_rate=0.1, gamma = 0.8, max_epsilon = 0.05, min_epsilon = 0.01, decay_rate = 0.0001):
         self.learning_rate = learning_rate
         self.gamma = gamma
         self.max_epsilon = max_epsilon
@@ -33,7 +33,7 @@ class QLearningAgent:
         state = tuple(feature_vector)
         epsilon = self._compute_epsilon(n_round) if train else 0
         if self.logger:
-            print_very_small_feature_vector(feature_vector, self.logger)
+            print_tiny_feature_vector(feature_vector, self.logger)
         
         if state not in self.q_table or random.uniform(0, 1) <= epsilon:
             action = random.choice(ACTIONS)

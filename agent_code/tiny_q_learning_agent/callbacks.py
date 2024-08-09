@@ -18,8 +18,8 @@ import pickle
 
 import torch
 
-from agent_code.feature_extraction import state_to_very_small_features
-from agent_code.q_learning import QLearningAgent
+from agent_code.feature_extraction import state_to_tiny_features
+from agent_code.tiny_q_learning import TinyQLearningAgent
 
 
 
@@ -48,7 +48,7 @@ def setup(self):
     self.agent_coord_history = deque([], self.MAX_COORD_HISTORY)
 
     # Learning rate von 0.1 funktioniert gut, ist aber recht langsam
-    self.agent = QLearningAgent(pretrained_model="q_table.pkl", logger=self.logger, learning_rate=0.2)
+    self.agent = TinyQLearningAgent(pretrained_model="quarks_v1.pkl", logger=self.logger, learning_rate=0.2)
 
     
 
@@ -83,7 +83,7 @@ def act(self, game_state: dict) -> str:
                 self.all_coins_game.append(coin)
 
     num_coins_already_discovered = len(self.all_coins_game)
-    feature_vector = state_to_very_small_features(
+    feature_vector = state_to_tiny_features(
         game_state, num_coins_already_discovered)#.to(self.device)
     
     return self.agent.act(feature_vector, 

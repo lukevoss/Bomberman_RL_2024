@@ -657,3 +657,31 @@ def print_very_small_feature_vector(feature_vector, logger = None):
         print(f"Action Recommendations: \n Coin:{action_coin}\n Crate:{action_crate}\n Opponent:{action_opponent}\n Safety:{action_safety}")
         print(f"Can survive and place Bomb: {bool(feature_vector[19])}")
         print()
+
+def print_tiny_feature_vector(feature_vector, logger = None):
+    feature_vector = np.array(feature_vector)
+    action_crate = "None" 
+    action_opponent = "None" 
+    action_coin_or_safety = "None" 
+    action_idx = np.where(feature_vector[:5] == 1)[0]
+    if action_idx.size > 0:
+        action_coin_or_safety = ACTIONS[action_idx[0]]
+
+    action_idx = np.where(feature_vector[5:10] == 1)[0]
+    if action_idx.size > 0:
+        action_crate = ACTIONS[action_idx[0]]
+
+    action_idx = np.where(feature_vector[10:15] == 1)[0]
+    if action_idx.size > 0:
+        action_opponent = ACTIONS[action_idx[0]]
+        
+
+    if logger:
+        logger.debug(f"Feature Vector: {feature_vector}")
+        logger.debug(f"Action Recommendations: \n Coin or Safety:{action_coin_or_safety}\n Crate:{action_crate}\n Opponent:{action_opponent}")
+        logger.debug(f"Can survive and place Bomb: {bool(feature_vector[15])}")
+    else:
+        print(feature_vector)
+        logger.debug(f"Action Recommendations: \n Coin or Safety:{action_coin_or_safety}\n Crate:{action_crate}\n Opponent:{action_opponent}")
+        logger.debug(f"Can survive and place Bomb: {bool(feature_vector[15])}")
+        print()

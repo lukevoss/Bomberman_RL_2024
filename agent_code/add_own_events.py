@@ -9,23 +9,23 @@ GAME_REWARDS = {
         # own_e.BOMBED_1_TO_2_CRATES: 0,
         # own_e.BOMBED_3_TO_5_CRATES: 0,
         # own_e.BOMBED_5_PLUS_CRATES: 0,
-        own_e.GOT_IN_LOOP: 0, # only for ppo -0.3,
-        own_e.ESCAPING: 0.07,
-        own_e.OUT_OF_DANGER: 0.1, # higher?
-        own_e.NOT_ESCAPING: -0.02,
-        own_e.IS_IN_DANGER: -0.02,
-        own_e.CLOSER_TO_COIN: 0.07,
-        own_e.AWAY_FROM_COIN: -0.04,
-        own_e.CLOSER_TO_CRATE: 0.01,
-        own_e.AWAY_FROM_CRATE: -0.01,
+        own_e.GOT_IN_LOOP: -0.05,
+        own_e.ESCAPING: 0.06, # Escaping can be less than e.g. coin, since direction to coin is only shown if it can be survived. But higher than opponent and crate, since it could get traped
+        own_e.OUT_OF_DANGER: 1, 
+        own_e.NOT_ESCAPING: -0.06,
+        own_e.IS_IN_DANGER: -0.1,
+        own_e.CLOSER_TO_COIN: 0.15,
+        own_e.AWAY_FROM_COIN: -0.1,
+        own_e.CLOSER_TO_CRATE: 0.04,
+        own_e.AWAY_FROM_CRATE: -0.04,
         own_e.SURVIVED_STEP: 0,
         # own_e.DESTROY_TARGET: 0.03,
         # own_e.MISSED_TARGET: -0.01,
         own_e.WAITED_NECESSARILY: 0.1,
         own_e.WAITED_UNNECESSARILY: -2,
         own_e.CLOSER_TO_PLAYERS: 0.02,
-        own_e.AWAY_FROM_PLAYERS: -0.01,
-        own_e.SMART_BOMB_DROPPED: 0.7,
+        own_e.AWAY_FROM_PLAYERS: -0.02,
+        own_e.SMART_BOMB_DROPPED: 0.5,
         own_e.DUMB_BOMB_DROPPED: -8,
 
         # DEFAULT EVENTS
@@ -168,6 +168,84 @@ def add_own_events(old_game_state, old_feature_vector, self_action, events_src, 
     #         events.append(own_e.BOMBED_3_TO_5_CRATES)
     #     else:
     #         events.append(own_e.BOMBED_1_TO_2_CRATES)
+
+    return events
+
+def tiny_add_own_events(old_game_state, old_feature_vector, self_action, events_src, end_of_round, agent_coord_history, max_opponents_score) -> list:
+
+    state = GameState(**old_game_state)
+    events = copy.deepcopy(events_src)
+    events.append(own_e.CONSTANT_PENALTY)
+
+    agent_coords = old_game_state['self'][3]
+    is_bomb_possible = old_game_state['self'][2]
+
+
+    score_self = old_game_state['self'][1]
+
+    if end_of_round:
+        if score_self > max_opponents_score:
+            events.append(own_e.WON_ROUND)
+    else:
+        events.append(own_e.SURVIVED_STEP)
+
+
+    direction_to_coin_or_safety = old_feature_vector[0:5]
+    if any(x == 1 for x in direction_to_coin_or_safety):
+        action_idx = np.argmax(direction_to_coin_or_safety)
+        if self_action == ACTIONS[action_idx]:
+            events.append(own_e.CLOSER_TO_COIN)
+        else:
+            events.append(own_e.AWAY_FROM_COIN)
+
+    if state.is_dangerous(agent_coords):
+        if state.has_escaped_danger(self_action):
+            events.append(own_e.OUT_OF_DANGER)
+
+    new_agents_coords = march_forward(agent_coords,self_action)
+    if state.is_dangerous(new_agents_coords):
+        events.append(own_e.IS_IN_DANGER)
+    
+
+    if self_action == 'WAIT':
+        if not state.is_dangerous(agent_coords) and state.is_danger_all_around(agent_coords):
+            events.append(own_e.WAITED_NECESSARILY)
+        else:
+            events.append(own_e.WAITED_UNNECESSARILY)
+
+    elif self_action == 'BOMB':
+        if is_bomb_possible:
+            can_reach_safety, is_effective = state.simulate_own_bomb()
+            if can_reach_safety and is_effective:
+                events.append(own_e.SMART_BOMB_DROPPED)
+            else:
+                events.append(own_e.DUMB_BOMB_DROPPED)
+
+    else:
+        if got_in_loop(agent_coords, self_action, agent_coord_history):
+            events.append(own_e.GOT_IN_LOOP)
+
+        new_agents_coords = march_forward(agent_coords, self_action)
+
+        # Is closer to player?
+        direction_to_opponent = old_feature_vector[10:14]
+        if any(x == 1 for x in direction_to_opponent):
+            action_idx = np.argmax(direction_to_opponent)
+            if self_action == ACTIONS[action_idx]:
+                events.append(own_e.CLOSER_TO_PLAYERS)
+            else:
+                events.append(own_e.AWAY_FROM_PLAYERS)
+
+        
+        # Is closer to crate?
+        direction_to_crate = old_feature_vector[5:9]
+        if any(x == 1 for x in direction_to_crate):
+            action_idx = np.argmax(direction_to_crate)
+            if self_action == ACTIONS[action_idx]:
+                events.append(own_e.CLOSER_TO_CRATE)
+            else:
+                events.append(own_e.AWAY_FROM_CRATE)
+
 
     return events
 
