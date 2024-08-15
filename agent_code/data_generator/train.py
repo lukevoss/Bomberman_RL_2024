@@ -13,7 +13,7 @@ from typing import List
 import events as e
 from agent_code.utils import ACTIONS
 from agent_code.feature_extraction import state_to_large_features
-from agent_code.add_own_events import add_own_events
+from agent_code.add_own_events import add_own_events_q_learning
 
 
 def setup_training(self):
@@ -54,7 +54,7 @@ def game_events_occurred(self, old_game_state: dict, expert_action: str, new_gam
 
     action_idx = ACTIONS.index(expert_action)
     feature_state = state_to_large_features(old_game_state, self.max_opponents_score)
-    events = add_own_events(old_game_state, expert_action, events, True, self.agent_coord_history, self.max_opponents_score)
+    events = add_own_events_q_learning(old_game_state, expert_action, events, True, self.agent_coord_history, self.max_opponents_score)
 
     np.savez_compressed("./data/expert_data_{}.npz".format(self.data_count),
                         state=feature_state, action=action_idx, events = events, is_terminal = False)
@@ -83,7 +83,7 @@ def end_of_round(self, last_game_state: dict, last_expert_action: str, events: L
     
     action_idx = ACTIONS.index(last_expert_action)
     feature_state = state_to_large_features(last_game_state, self.max_opponents_score)
-    events = add_own_events(last_game_state, last_expert_action, events, True, self.agent_coord_history, self.max_opponents_score)
+    events = add_own_events_q_learning(last_game_state, last_expert_action, events, True, self.agent_coord_history, self.max_opponents_score)
 
     np.savez_compressed("./data/expert_data_{}.npz".format(self.data_count),
                         state=feature_state, action=action_idx, events = events, is_terminal = True)

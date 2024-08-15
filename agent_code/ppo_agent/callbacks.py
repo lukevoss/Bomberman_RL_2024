@@ -19,7 +19,7 @@ import torch
 
 from agent_code.ppo import PPOAgent
 from agent_code.feature_extraction import state_to_large_features, FEATURE_VECTOR_SIZE
-from agent_code.utils import print_feature_vector
+from agent_code.utils import print_large_feature_vector
 
 
 def setup(self):

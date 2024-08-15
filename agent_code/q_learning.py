@@ -33,7 +33,7 @@ class QLearningAgent:
         state = tuple(feature_vector)
         epsilon = self._compute_epsilon(n_round) if train else 0
         if self.logger:
-            print_very_small_feature_vector(feature_vector, self.logger)
+            print_small_feature_vector(feature_vector, self.logger)
         
         if state not in self.q_table or random.uniform(0, 1) <= epsilon:
             action = random.choice(ACTIONS)

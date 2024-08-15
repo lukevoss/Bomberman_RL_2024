@@ -13,7 +13,7 @@ from typing import List
 import events as e
 from agent_code.utils import ACTIONS
 from agent_code.feature_extraction import state_to_small_features_imitation
-from agent_code.add_own_events import add_own_events
+from agent_code.add_own_events import add_own_events_q_learning
 
 
 def setup_training(self):
@@ -58,7 +58,7 @@ def game_events_occurred(self, old_game_state: dict, expert_action: str, new_gam
     old_feature_state = state_to_small_features_imitation(old_game_state, num_coins_already_discovered)
     new_feature_state = state_to_small_features_imitation(new_game_state, num_coins_already_discovered)
 
-    events = add_own_events(old_game_state, old_feature_state, expert_action, events, True, self.agent_coord_history, self.max_opponents_score)
+    events = add_own_events_q_learning(old_game_state, old_feature_state, expert_action, events, True, self.agent_coord_history, self.max_opponents_score)
 
     np.savez_compressed("./data/expert_data_{}.npz".format(self.data_count),
                         old_state=old_feature_state, action=action_idx, events = events, new_state = new_feature_state)
@@ -90,7 +90,7 @@ def end_of_round(self, last_game_state: dict, last_expert_action: str, events: L
 
     feature_state = state_to_small_features_imitation(last_game_state, num_coins_already_discovered)
     new_feature_state = [-1] * 20
-    events = add_own_events(last_game_state, feature_state ,last_expert_action, events, True, self.agent_coord_history, self.max_opponents_score)
+    events = add_own_events_q_learning(last_game_state, feature_state ,last_expert_action, events, True, self.agent_coord_history, self.max_opponents_score)
 
     np.savez_compressed("./data/expert_data_{}.npz".format(self.data_count),
                         old_state=feature_state, action=action_idx, events = events, new_state=new_feature_state)

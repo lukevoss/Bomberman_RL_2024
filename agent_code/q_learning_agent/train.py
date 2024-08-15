@@ -7,7 +7,7 @@ Deep learning approach with strong feature engineering
 from typing import List
 
 from agent_code.feature_extraction import state_to_small_features
-from agent_code.add_own_events import add_own_events, GAME_REWARDS
+from agent_code.add_own_events import add_own_events_q_learning, GAME_REWARDS
 from agent_code.q_learning import *
 
 # Hyper parameters:
@@ -47,7 +47,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     new_feature_state = state_to_small_features(new_game_state, num_coins_already_discovered)#.to(self.device)
 
     # Hand out self shaped events
-    events = add_own_events(old_game_state, 
+    events = add_own_events_q_learning(old_game_state, 
                             old_feature_state,
                             self_action,
                             events,
@@ -83,7 +83,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     old_feature_state = state_to_small_features(last_game_state, num_coins_already_discovered)#.to(self.device)
 
     # Hand out self shaped events
-    events = add_own_events(last_game_state,
+    events = add_own_events_q_learning(last_game_state,
                             old_feature_state, 
                             last_action,
                             events,

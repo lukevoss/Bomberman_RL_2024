@@ -124,8 +124,6 @@ class GameState:
                 (not step_coords in opponent_positions) and
                 (not step_coords in bomb_positions))
     
-    # def is_free_tile(self, step_coords: Tuple[int, int]) -> bool:
-    #     return self.field[step_coords] == FREE
 
     def is_dangerous(self, step_coords: Tuple[int, int]) -> bool:
         """Function checks if given position is dangerous"""
@@ -242,7 +240,6 @@ class GameState:
         Breadth First Search for efficiant search of closest crate
         Ignores opponents and bombs and walls
         """
-        rows, cols = len(self.field), len(self.field[0])
         queue = deque([agent_coords])
         visited = set(agent_coords)
 
@@ -390,7 +387,6 @@ class GameState:
         Returns the shortest path to one of the given goal coordinates, currently bombs and opponents block movements
         with next game state estimation. If no path exist it returns None if criterion true at current position, 
         returns empty array
-        TODO put waiting into exploring?
         """
         starting_game_state = copy.deepcopy(self)
         stop_criterion, object_exists = get_stop_criterion_for_thing(thing)
@@ -601,7 +597,7 @@ def is_out_of_danger(game_state: GameState, new_coords: Tuple[int, int]) -> bool
 def exists_safety(game_state: GameState) -> bool:
     return True
 
-def print_feature_vector(feature_vector):
+def print_large_feature_vector(feature_vector):
     print(feature_vector)
     action_coin = "None" 
     action_crate = "None" 
@@ -627,7 +623,7 @@ def print_feature_vector(feature_vector):
     print(f"Smart Bomb: {bool(feature_vector[26])}")
     print()
 
-def print_very_small_feature_vector(feature_vector, logger = None):
+def print_small_feature_vector(feature_vector, logger = None):
     feature_vector = np.array(feature_vector)
     action_coin = "None" 
     action_crate = "None" 
@@ -659,30 +655,3 @@ def print_very_small_feature_vector(feature_vector, logger = None):
         print(f"Can survive and place Bomb: {bool(feature_vector[19])}")
         print()
 
-def print_tiny_feature_vector(feature_vector, logger = None):
-    feature_vector = np.array(feature_vector)
-    action_crate = "None" 
-    action_opponent = "None" 
-    action_coin_or_safety = "None" 
-    action_idx = np.where(feature_vector[:5] == 1)[0]
-    if action_idx.size > 0:
-        action_coin_or_safety = ACTIONS[action_idx[0]]
-
-    action_idx = np.where(feature_vector[5:10] == 1)[0]
-    if action_idx.size > 0:
-        action_crate = ACTIONS[action_idx[0]]
-
-    action_idx = np.where(feature_vector[10:15] == 1)[0]
-    if action_idx.size > 0:
-        action_opponent = ACTIONS[action_idx[0]]
-        
-
-    if logger:
-        logger.debug(f"Feature Vector: {feature_vector}")
-        logger.debug(f"Action Recommendations: \n Coin or Safety:{action_coin_or_safety}\n Crate:{action_crate}\n Opponent:{action_opponent}")
-        logger.debug(f"Can survive and place Bomb: {bool(feature_vector[15])}")
-    else:
-        print(feature_vector)
-        logger.debug(f"Action Recommendations: \n Coin or Safety:{action_coin_or_safety}\n Crate:{action_crate}\n Opponent:{action_opponent}")
-        logger.debug(f"Can survive and place Bomb: {bool(feature_vector[15])}")
-        print()

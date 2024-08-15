@@ -13,7 +13,7 @@ import torch
 import events as e
 import own_events as own_e
 from agent_code.feature_extraction import state_to_large_features
-from agent_code.add_own_events import add_own_events, GAME_REWARDS
+from agent_code.add_own_events import add_own_events_q_learning, GAME_REWARDS
 
 
 # Hyper parameters:
@@ -46,7 +46,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     """
     # Hand out self shaped events
     start_time = time.time()
-    events = add_own_events(old_game_state, 
+    events = add_own_events_q_learning(old_game_state, 
                             self_action,
                             events,
                             end_of_round=False,
@@ -84,7 +84,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     """
     # Hand out self shaped events
     start_time = time.time()
-    events = add_own_events(last_game_state, 
+    events = add_own_events_q_learning(last_game_state, 
                             last_action,
                             events,
                             end_of_round=False,
