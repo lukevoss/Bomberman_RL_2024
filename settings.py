@@ -15,7 +15,7 @@ SCENARIOS = {
     },
     "coin-heaven": {
         "CRATE_DENSITY": 0,
-        "COIN_COUNT": 50
+        "COIN_COUNT": 9
     },
     "loot-crate": { 
         "CRATE_DENSITY": 0.75, 
@@ -25,15 +25,32 @@ SCENARIOS = {
     "classic": {
         "CRATE_DENSITY": 0.75,
         "COIN_COUNT": 9
+    },
+
+    # OUR SCENARIOS:
+    # Creat artifically possible end of game states
+    "one-coin-no-crate": {
+        "CRATE_DENSITY": 0,
+        "COIN_COUNT": 1
+    },
+
+    "crates-only": {
+        "CRATE_DENSITY": 0.02,
+        "COIN_COUNT": 0
+    },
+
+    "few-crates-and-coins": {
+        "CRATE_DENSITY": 0.02,
+        "COIN_COUNT": 9
     }
-    # Feel free to add more game modes and properties
+
+ 
     # game is created in environment.py -> BombeRLeWorld -> build_arena()
 }
 MAX_AGENTS = 4
 
 # Round properties
 MAX_STEPS = 400
-
 # GUI properties
 GRID_SIZE = 30
 WIDTH = 1000

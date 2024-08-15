@@ -12,7 +12,7 @@ import torch
 
 import events as e
 import own_events as own_e
-from agent_code.feature_extraction import state_to_features_large
+from agent_code.feature_extraction import state_to_large_features
 from agent_code.add_own_events import add_own_events, GAME_REWARDS
 
 
@@ -58,8 +58,8 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
 
     start_time = time.time()
-    old_feature_state = state_to_features_large(old_game_state, self.max_opponents_score).to(self.device)
-    new_feature_state = state_to_features_large(new_game_state, self.max_opponents_score).to(self.device)
+    old_feature_state = state_to_large_features(old_game_state, self.max_opponents_score).to(self.device)
+    new_feature_state = state_to_large_features(new_game_state, self.max_opponents_score).to(self.device)
     time_feature_extraction = (time.time() - start_time)
 
     is_terminal = False
@@ -98,7 +98,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     reward = reward_from_events(self, events)
 
     start_time = time.time()
-    old_feature_state = state_to_features_large(last_game_state, self.max_opponents_score).to(self.device)
+    old_feature_state = state_to_large_features(last_game_state, self.max_opponents_score).to(self.device)
     time_feature_extraction = (time.time() - start_time)
 
     is_terminal = True

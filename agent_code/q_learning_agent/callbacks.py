@@ -18,7 +18,7 @@ import pickle
 
 import torch
 
-from agent_code.feature_extraction import state_to_very_small_features
+from agent_code.feature_extraction import state_to_small_features
 from agent_code.q_learning import QLearningAgent
 
 
@@ -38,6 +38,7 @@ def setup(self):
     """
     # Hyperparameter
     self.MAX_COORD_HISTORY = 7
+    self.MODEL_NAME = "champ.pkl"
 
     self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     #print(f"Model is run on: {self.device}")
@@ -48,7 +49,7 @@ def setup(self):
     self.agent_coord_history = deque([], self.MAX_COORD_HISTORY)
 
     # Learning rate von 0.1 funktioniert gut, ist aber recht langsam
-    self.agent = QLearningAgent(pretrained_model="q_table.pkl", logger=self.logger, learning_rate=0.2)
+    self.agent = QLearningAgent(pretrained_model="atom.pkl", logger=self.logger, learning_rate=0.01, gamma = 0, max_epsilon = 0.2, min_epsilon = 0.05, decay_rate = 0.0001)
 
     
 
@@ -83,7 +84,7 @@ def act(self, game_state: dict) -> str:
                 self.all_coins_game.append(coin)
 
     num_coins_already_discovered = len(self.all_coins_game)
-    feature_vector = state_to_very_small_features(
+    feature_vector = state_to_small_features(
         game_state, num_coins_already_discovered)#.to(self.device)
     
     return self.agent.act(feature_vector, 

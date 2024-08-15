@@ -8,7 +8,7 @@ from agent_code.utils import *
 
 
 class QLearningAgent:
-    def __init__(self, pretrained_model=None, logger = None, learning_rate=0.1, gamma = 0.8, max_epsilon = 0.8, min_epsilon = 0.1, decay_rate = 0.0001):
+    def __init__(self, pretrained_model=None, logger = None, learning_rate=0.1, gamma = 0, max_epsilon = 0.3, min_epsilon = 0.05, decay_rate = 0.0001):
         self.learning_rate = learning_rate
         self.gamma = gamma
         self.max_epsilon = max_epsilon

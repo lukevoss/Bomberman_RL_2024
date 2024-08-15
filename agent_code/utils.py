@@ -14,6 +14,7 @@ MOVEMENT_DIRECTIONS = [(0, -1), (0, 1), (-1, 0), (1, 0)
 DIRECTIONS_AND_WAIT = [(0, -1), (0, 1), (-1, 0), (1, 0), (0, 0)]
 MOVEMENT_ACTIONS = ['UP', 'DOWN', 'LEFT', 'RIGHT']
 ACTIONS = ['UP', 'DOWN', 'LEFT', 'RIGHT', 'WAIT', 'BOMB']
+ACTIONS_NO_BOMB = ['UP', 'DOWN', 'LEFT', 'RIGHT', 'WAIT']
 MOVEMENT = {
     "UP": (0, -1),
     "DOWN": (0, 1),

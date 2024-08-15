@@ -12,7 +12,7 @@ from typing import List
 
 import events as e
 from agent_code.utils import ACTIONS
-from agent_code.feature_extraction import state_to_very_small_features_imitation
+from agent_code.feature_extraction import state_to_small_features_imitation
 from agent_code.add_own_events import add_own_events
 
 
@@ -55,8 +55,8 @@ def game_events_occurred(self, old_game_state: dict, expert_action: str, new_gam
     action_idx = ACTIONS.index(expert_action)
     num_coins_already_discovered = len(self.all_coins_game)
 
-    old_feature_state = state_to_very_small_features_imitation(old_game_state, num_coins_already_discovered)
-    new_feature_state = state_to_very_small_features_imitation(new_game_state, num_coins_already_discovered)
+    old_feature_state = state_to_small_features_imitation(old_game_state, num_coins_already_discovered)
+    new_feature_state = state_to_small_features_imitation(new_game_state, num_coins_already_discovered)
 
     events = add_own_events(old_game_state, old_feature_state, expert_action, events, True, self.agent_coord_history, self.max_opponents_score)
 
@@ -88,7 +88,7 @@ def end_of_round(self, last_game_state: dict, last_expert_action: str, events: L
     num_coins_already_discovered = len(self.all_coins_game)
     action_idx = ACTIONS.index(last_expert_action)
 
-    feature_state = state_to_very_small_features_imitation(last_game_state, num_coins_already_discovered)
+    feature_state = state_to_small_features_imitation(last_game_state, num_coins_already_discovered)
     new_feature_state = [-1] * 20
     events = add_own_events(last_game_state, feature_state ,last_expert_action, events, True, self.agent_coord_history, self.max_opponents_score)
 

@@ -14,7 +14,7 @@ import torch
 
 import events as e
 import own_events as own_e
-from agent_code.feature_extraction import state_to_very_small_features
+from agent_code.feature_extraction import state_to_small_features
 from agent_code.add_own_events import add_own_events, GAME_REWARDS
 from agent_code.q_learning import *
 
@@ -58,8 +58,8 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
 
     start_time = time.time()
-    old_feature_state = state_to_very_small_features(old_game_state, num_coins_already_discovered)#.to(self.device)
-    new_feature_state = state_to_very_small_features(new_game_state, num_coins_already_discovered)#.to(self.device)
+    old_feature_state = state_to_small_features(old_game_state, num_coins_already_discovered)#.to(self.device)
+    new_feature_state = state_to_small_features(new_game_state, num_coins_already_discovered)#.to(self.device)
     time_feature_extraction = (time.time() - start_time)
 
     # Hand out self shaped events
@@ -99,7 +99,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     num_coins_already_discovered = len(self.all_coins_game)
 
     start_time = time.time()
-    old_feature_state = state_to_very_small_features(last_game_state, num_coins_already_discovered)#.to(self.device)
+    old_feature_state = state_to_small_features(last_game_state, num_coins_already_discovered)#.to(self.device)
     time_feature_extraction = (time.time() - start_time)
 
     # Hand out self shaped events
@@ -119,7 +119,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     n_round = last_game_state['round']
     if (n_round % SAVE_EVERY_N_EPOCHS) == 0:
         print(f"Saving table of length {len(self.agent.q_table)}")
-        self.agent.save()
+        self.agent.save(model_name = self.MODEL_NAME)
 
 
 def reward_from_events(self, events: List[str]) -> int:
