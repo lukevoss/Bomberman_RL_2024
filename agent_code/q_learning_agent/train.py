@@ -4,28 +4,14 @@ Implementation of a PPO algorithm with LSTM and MLP networks as Actor Critic
 
 Deep learning approach with strong feature engineering
 """
-import os
 from typing import List
-import time
-import pickle
 
-import numpy as np
-import torch
-
-import events as e
-import own_events as own_e
 from agent_code.feature_extraction import state_to_small_features
 from agent_code.add_own_events import add_own_events, GAME_REWARDS
 from agent_code.q_learning import *
 
-# path to the QTable models
-cwd = os.path.abspath(os.path.dirname(__file__))
-MODEL_PATH = f"{cwd}/model.pkl"
-
 # Hyper parameters:
 SAVE_EVERY_N_EPOCHS = 100
-loop = 0
-LR = 1e-4
 
 
 def setup_training(self):
@@ -57,13 +43,10 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     num_coins_already_discovered = len(self.all_coins_game)
 
 
-    start_time = time.time()
     old_feature_state = state_to_small_features(old_game_state, num_coins_already_discovered)#.to(self.device)
     new_feature_state = state_to_small_features(new_game_state, num_coins_already_discovered)#.to(self.device)
-    time_feature_extraction = (time.time() - start_time)
 
     # Hand out self shaped events
-    start_time = time.time()
     events = add_own_events(old_game_state, 
                             old_feature_state,
                             self_action,
@@ -71,7 +54,6 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
                             end_of_round=False,
                             agent_coord_history=self.agent_coord_history,
                             max_opponents_score=self.max_opponents_score)
-    time_own_events = (time.time() - start_time)
 
     reward = reward_from_events(self, events)
 
@@ -98,12 +80,9 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     reward = reward_from_events(self, events)
     num_coins_already_discovered = len(self.all_coins_game)
 
-    start_time = time.time()
     old_feature_state = state_to_small_features(last_game_state, num_coins_already_discovered)#.to(self.device)
-    time_feature_extraction = (time.time() - start_time)
 
     # Hand out self shaped events
-    start_time = time.time()
     events = add_own_events(last_game_state,
                             old_feature_state, 
                             last_action,
@@ -111,7 +90,6 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
                             end_of_round=False,
                             agent_coord_history=self.agent_coord_history,
                             max_opponents_score=self.max_opponents_score)
-    time_own_events = (time.time() - start_time)
 
     self.agent.training_step(old_feature_state, last_action, reward, None)
     

@@ -1,22 +1,15 @@
 """ 
 This File is called by the environment and manages the agents movements
-Implementation of a PPO algorithm with LSTM and MLP networks as Actor Critic
+Implementation of a Q-learning algorithm
 
-Deep learning approach with feature engineering:
-
-Current status:
-Agent learn, but gets stuck on bad local maxima. Behavioral cloning to solve issue, but results are still bad
-Ideas:
-Network not deep enough, reward system not dense enough, feature engeneering maybe nececarry
+Current Status:
+Agent "atom" continiously achieves about 5.1 points per game, 
+in the classic setting with 3 rule based agents as opponents
 
 
 Author: Luke Voss
 """
-import os
 from collections import deque
-import pickle
-
-import torch
 
 from agent_code.feature_extraction import state_to_small_features
 from agent_code.q_learning import QLearningAgent
@@ -38,14 +31,10 @@ def setup(self):
     """
     # Hyperparameter
     self.MAX_COORD_HISTORY = 7
-    self.MODEL_NAME = "champ.pkl"
+    self.MODEL_NAME = "q_table.pkl"
 
-    self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    #print(f"Model is run on: {self.device}")
     self.current_round = 0
     self.all_coins_game = []
-
-    # Agent Position history before normalization
     self.agent_coord_history = deque([], self.MAX_COORD_HISTORY)
 
     # Learning rate von 0.1 funktioniert gut, ist aber recht langsam
@@ -66,7 +55,7 @@ def is_new_round(self, game_state: dict) -> bool:
 
 
 def act(self, game_state: dict) -> str:
-    """ b 
+    """
     Agent parses the input, thinks, and take a decision.
     When not in training mode, the maximum execution time for this method is 0.5s.
 
@@ -85,7 +74,7 @@ def act(self, game_state: dict) -> str:
 
     num_coins_already_discovered = len(self.all_coins_game)
     feature_vector = state_to_small_features(
-        game_state, num_coins_already_discovered)#.to(self.device)
+        game_state, num_coins_already_discovered)
     
     return self.agent.act(feature_vector, 
                           n_round = game_state["round"], 
