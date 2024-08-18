@@ -72,7 +72,7 @@ class PPOAgent:
         self.device = device
         self.model = self._initialize_model(
             pretrained_model, input_feature_size, hidden_size, network_type)
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-3)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-6)
 
         self.states = []
         self.actions = []
@@ -230,7 +230,7 @@ class PPOAgent:
             else:
                 _, next_value = self.model(new_feature_state)
             returns = compute_gae(next_value, self.rewards,
-                                       self.masks, self.values)
+                                       self.masks, self.values, gamma=0.5)
 
             returns = torch.stack(returns).detach()
             log_probs = torch.stack(self.log_probs).detach()

@@ -280,7 +280,7 @@ def state_to_small_features_ppo(game_state: dict, num_coins_already_discovered: 
 
     # If we can't place a bomb and survive it, don't show bombing opponent as an option
     #feature_vector[14] &= feature_vector[19] 
-
+    feature_vector[14] = int(feature_vector[14]) & int(feature_vector[19])
 
     return feature_vector
 
