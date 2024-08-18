@@ -18,7 +18,7 @@ USING_PRETRAINED = False
 MODEL_NAME = 'imitation_model.pt'
 FIELD_SIZE = 15
 FEATURE_SIZE = 7
-NUM_INPUT = 27
+NUM_INPUT = 20
 NUM_OUTPUT = 6
 HIDDEN_SIZE = 512
 NUM_EPOCHS = 5
@@ -30,7 +30,7 @@ BATCH_SIZE = 64
 class ExpertDataset(Dataset):
     def __init__(self):
 
-        file_path = "./expert_data.npz"
+        file_path = "./expert_data_ppo.npz"
 
         data = np.load(file_path)
 

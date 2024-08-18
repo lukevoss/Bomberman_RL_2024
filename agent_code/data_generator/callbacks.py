@@ -41,6 +41,7 @@ def setup(self):
     self.current_round = 0
     self.max_opponents_score = 0
 
+    self.all_coins_game = []
 
 
 def look_for_targets(free_space, start, targets, logger=None):
@@ -100,6 +101,8 @@ def reset_self(self):
     self.ignore_others_timer = 0
     self.max_opponents_score = 0
     self.agent_coord_history = deque([], self.MAX_COORD_HISTORY)
+
+    self.all_coins_game = []
 
 def act(self, game_state):
     """

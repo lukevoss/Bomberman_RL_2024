@@ -104,7 +104,7 @@ class PPOAgent:
         print("Using pretrained model")
         model = self._select_model(
             network_type, input_feature_size, hidden_size, num_outputs)
-        model.load_state_dict(torch.load(model_path, map_location=self.device))
+        model.load_state_dict(torch.load(model_path, map_location=self.device, weights_only=True))
         return model.to(self.device)
 
     def _create_new_model(self, input_feature_size, hidden_size, num_outputs, network_type):

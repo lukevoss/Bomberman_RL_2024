@@ -18,7 +18,7 @@ from collections import deque
 import torch
 
 from agent_code.ppo import PPOAgent
-from agent_code.feature_extraction import state_to_large_features, FEATURE_VECTOR_SIZE
+from agent_code.feature_extraction import state_to_small_features_ppo, FEATURE_VECTOR_SIZE
 from agent_code.utils import print_large_feature_vector
 
 
@@ -39,7 +39,7 @@ def setup(self):
     self.MAX_COORD_HISTORY = 7
     HIDDEN_SIZE = 512
     NETWORK_TYPE = 'MLP'
-    PRETRAINED_MODEL = "ppo_model.pt"
+    PRETRAINED_MODEL = "imitation_model.pt"#"ppo_model.pt"
 
     self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Model is run on: {self.device}")
@@ -47,6 +47,8 @@ def setup(self):
     self.max_opponents_score = 0
     self.sum_points_per_game = 0
     self.last_points = 0
+
+    self.all_coins_game = []
 
     # Agent Position history before normalization
     self.agent_coord_history = deque([], self.MAX_COORD_HISTORY)
@@ -62,6 +64,7 @@ def reset_self(self, game_state: dict):
     self.agent_coord_history = deque([], self.MAX_COORD_HISTORY)
     self.current_round = game_state["round"]
     self.max_opponents_score = 0
+    self.all_coins_game = []
 
 
 def is_new_round(self, game_state: dict) -> bool:
@@ -93,8 +96,16 @@ def act(self, game_state: dict) -> str:
         self.max_opponents_score = max(
             self.max_opponents_score, max_living_opponent_score)
 
-    feature_vector = state_to_large_features(
-        game_state, self.max_opponents_score).to(self.device)
+    coins = game_state['coins']
+    if coins != []:
+        for coin in coins:
+            if coin not in self.all_coins_game:
+                self.all_coins_game.append(coin)
+
+    num_coins_already_discovered = len(self.all_coins_game)
+
+    feature_vector = state_to_small_features_ppo(
+        game_state, num_coins_already_discovered).to(self.device)
     
     
     next_action = self.agent.act(feature_vector)

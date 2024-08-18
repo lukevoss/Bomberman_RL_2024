@@ -12,9 +12,9 @@ from typing import List
 
 import events as e
 from agent_code.utils import ACTIONS
-from agent_code.feature_extraction import state_to_large_features
-from agent_code.add_own_events import add_own_events_q_learning
-
+from agent_code.feature_extraction import state_to_small_features_ppo
+from agent_code.add_own_events import add_own_events_ppo
+import os
 
 def setup_training(self):
     """
@@ -26,7 +26,9 @@ def setup_training(self):
 
     Author: Luke Voss
     """
-    self.data_count = 1
+    directory='data'
+    file_count = len([f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f))])
+    self.data_count = file_count
 
 
 def game_events_occurred(self, old_game_state: dict, expert_action: str, new_game_state: dict, events: List[str]):
@@ -51,10 +53,11 @@ def game_events_occurred(self, old_game_state: dict, expert_action: str, new_gam
     if expert_action is None:
         expert_action = 'WAIT'
 
+    num_coins_already_discovered = len(self.all_coins_game)
 
     action_idx = ACTIONS.index(expert_action)
-    feature_state = state_to_large_features(old_game_state, self.max_opponents_score)
-    events = add_own_events_q_learning(old_game_state, expert_action, events, True, self.agent_coord_history, self.max_opponents_score)
+    feature_state = state_to_small_features_ppo(old_game_state, num_coins_already_discovered)
+    events = add_own_events_ppo(old_game_state, expert_action, events, True, self.agent_coord_history, self.max_opponents_score)
 
     np.savez_compressed("./data/expert_data_{}.npz".format(self.data_count),
                         state=feature_state, action=action_idx, events = events, is_terminal = False)
@@ -81,9 +84,11 @@ def end_of_round(self, last_game_state: dict, last_expert_action: str, events: L
     if last_expert_action is None:
         last_expert_action = 'WAIT'
     
+    num_coins_already_discovered = len(self.all_coins_game)
+
     action_idx = ACTIONS.index(last_expert_action)
-    feature_state = state_to_large_features(last_game_state, self.max_opponents_score)
-    events = add_own_events_q_learning(last_game_state, last_expert_action, events, True, self.agent_coord_history, self.max_opponents_score)
+    feature_state = state_to_small_features_ppo(last_game_state, num_coins_already_discovered)
+    events = add_own_events_ppo(last_game_state, last_expert_action, events, True, self.agent_coord_history, self.max_opponents_score)
 
     np.savez_compressed("./data/expert_data_{}.npz".format(self.data_count),
                         state=feature_state, action=action_idx, events = events, is_terminal = True)

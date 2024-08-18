@@ -39,7 +39,7 @@ def validation(agent, validation_dataset):
 
 def main():
 
-    file_path = "./expert_data.npz"
+    file_path = "./expert_data_q.npz"
     expert_dataset = np.load(file_path)
     old_states = expert_dataset['old_states']
     new_states = expert_dataset['new_states']

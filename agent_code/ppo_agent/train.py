@@ -12,12 +12,12 @@ import torch
 
 import events as e
 import own_events as own_e
-from agent_code.feature_extraction import state_to_large_features
-from agent_code.add_own_events import add_own_events_q_learning, GAME_REWARDS
+from agent_code.feature_extraction import state_to_small_features_ppo
+from agent_code.add_own_events import add_own_events_ppo, GAME_REWARDS
 
 
 # Hyper parameters:
-SAVE_EVERY_N_EPOCHS = 50
+SAVE_EVERY_N_EPOCHS = 10
 loop = 0
 LR = 1e-3
 
@@ -46,7 +46,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     """
     # Hand out self shaped events
     start_time = time.time()
-    events = add_own_events_q_learning(old_game_state, 
+    events = add_own_events_ppo(old_game_state, 
                             self_action,
                             events,
                             end_of_round=False,
@@ -58,8 +58,11 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
 
     start_time = time.time()
-    old_feature_state = state_to_large_features(old_game_state, self.max_opponents_score).to(self.device)
-    new_feature_state = state_to_large_features(new_game_state, self.max_opponents_score).to(self.device)
+
+    num_coins_already_discovered = len(self.all_coins_game)
+
+    old_feature_state = state_to_small_features_ppo(old_game_state, num_coins_already_discovered).to(self.device)
+    new_feature_state = state_to_small_features_ppo(new_game_state, num_coins_already_discovered).to(self.device)
     time_feature_extraction = (time.time() - start_time)
 
     is_terminal = False
@@ -84,7 +87,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     """
     # Hand out self shaped events
     start_time = time.time()
-    events = add_own_events_q_learning(last_game_state, 
+    events = add_own_events_ppo(last_game_state, 
                             last_action,
                             events,
                             end_of_round=False,
@@ -98,7 +101,10 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     reward = reward_from_events(self, events)
 
     start_time = time.time()
-    old_feature_state = state_to_large_features(last_game_state, self.max_opponents_score).to(self.device)
+
+    num_coins_already_discovered = len(self.all_coins_game)
+
+    old_feature_state = state_to_small_features_ppo(last_game_state, num_coins_already_discovered).to(self.device)
     time_feature_extraction = (time.time() - start_time)
 
     is_terminal = True
