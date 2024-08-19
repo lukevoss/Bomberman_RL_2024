@@ -13,7 +13,7 @@ import torch
 import events as e
 import own_events as own_e
 from agent_code.feature_extraction import state_to_small_features_ppo
-from agent_code.add_own_events import add_own_events_ppo, GAME_REWARDS
+from agent_code.add_own_events import add_own_events_ppo, add_own_events_q_learning, GAME_REWARDS
 
 
 # Hyper parameters:
@@ -45,25 +45,39 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     Author: Luke Voss
     """
     # Hand out self shaped events
+    #start_time = time.time()
+    #events = add_own_events_ppo(old_game_state, 
+    #                        self_action,
+    #                        events,
+    #                        end_of_round=False,
+    #                        agent_coord_history=self.agent_coord_history,
+    #                        max_opponents_score=self.max_opponents_score)
+    #time_own_events = (time.time() - start_time)
+
+    num_coins_already_discovered = len(self.all_coins_game)
+
     start_time = time.time()
-    events = add_own_events_ppo(old_game_state, 
+
+    old_feature_state = state_to_small_features_ppo(old_game_state, num_coins_already_discovered).to(self.device)
+    new_feature_state = state_to_small_features_ppo(new_game_state, num_coins_already_discovered).to(self.device)
+
+    time_feature_extraction = (time.time() - start_time)
+
+    start_time = time.time()
+
+    # Hand out self shaped events
+    events = add_own_events_q_learning(old_game_state, 
+                            old_feature_state,
                             self_action,
                             events,
                             end_of_round=False,
                             agent_coord_history=self.agent_coord_history,
                             max_opponents_score=self.max_opponents_score)
+
     time_own_events = (time.time() - start_time)
 
     # Log Events
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
-
-    start_time = time.time()
-
-    num_coins_already_discovered = len(self.all_coins_game)
-
-    old_feature_state = state_to_small_features_ppo(old_game_state, num_coins_already_discovered).to(self.device)
-    new_feature_state = state_to_small_features_ppo(new_game_state, num_coins_already_discovered).to(self.device)
-    time_feature_extraction = (time.time() - start_time)
 
     is_terminal = False
     reward = reward_from_events(self, events)
@@ -86,8 +100,26 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     Author: Luke Voss
     """
     # Hand out self shaped events
+    #start_time = time.time()
+    #events = add_own_events_ppo(last_game_state, 
+    #                        last_action,
+    #                        events,
+    #                        end_of_round=False,
+    #                        agent_coord_history=self.agent_coord_history,
+    #                        max_opponents_score=self.max_opponents_score)
+    #time_own_events = (time.time() - start_time)
+
+    num_coins_already_discovered = len(self.all_coins_game)
+
     start_time = time.time()
-    events = add_own_events_ppo(last_game_state, 
+    old_feature_state = state_to_small_features_ppo(last_game_state, num_coins_already_discovered).to(self.device)
+    time_feature_extraction = (time.time() - start_time)
+
+    start_time = time.time()
+
+    # Hand out self shaped events
+    events = add_own_events_q_learning(last_game_state, 
+                            old_feature_state,
                             last_action,
                             events,
                             end_of_round=False,
@@ -98,16 +130,8 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     # Log Events
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
 
-    reward = reward_from_events(self, events)
-
-    start_time = time.time()
-
-    num_coins_already_discovered = len(self.all_coins_game)
-
-    old_feature_state = state_to_small_features_ppo(last_game_state, num_coins_already_discovered).to(self.device)
-    time_feature_extraction = (time.time() - start_time)
-
     is_terminal = True
+    reward = reward_from_events(self, events)
 
     self.agent.training_step(old_feature_state, None, last_action, reward,  is_terminal, 
                              time_feature_extraction, time_own_events)
@@ -115,7 +139,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     # Store the model
     n_round = last_game_state['round']
     if (n_round % SAVE_EVERY_N_EPOCHS) == 0:
-        self.agent.save_model()
+        self.agent.save_model(self.MODEL_NAME)
 
 
 def reward_from_events(self, events: List[str]) -> int:
