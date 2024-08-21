@@ -14,6 +14,10 @@ UPDATE_PPO_AFTER_N_STEPS = 32
 MINI_BATCH_SIZE = 8
 PPO_EPOCHS_PER_EVALUATION = 4
 
+LR = 1e-4
+GAMMA = 0.3
+TAU = 0.95
+
 def compute_gae_tensors(next_value, rewards, masks, values, gamma=0.99, tau=0.95):
     """
     Compute General Advantage Estimation (GAE) for a sequence of rewards and value estimates using PyTorch tensors.
@@ -72,7 +76,7 @@ class PPOAgent:
         self.device = device
         self.model = self._initialize_model(
             pretrained_model, input_feature_size, hidden_size, network_type)
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-6)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=LR)
 
         self.states = []
         self.actions = []
@@ -230,7 +234,7 @@ class PPOAgent:
             else:
                 _, next_value = self.model(new_feature_state)
             returns = compute_gae(next_value, self.rewards,
-                                       self.masks, self.values, gamma=0.5)
+                                       self.masks, self.values, gamma=GAMMA, tau=TAU)
 
             returns = torch.stack(returns).detach()
             log_probs = torch.stack(self.log_probs).detach()

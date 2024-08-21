@@ -39,14 +39,16 @@ def setup(self):
     self.MAX_COORD_HISTORY = 7
     HIDDEN_SIZE = 512
     NETWORK_TYPE = 'MLP'
-    PRETRAINED_MODEL = "ppo_model.pt"
-    self.MODEL_NAME = "ppo_model"
+    PRETRAINED_MODEL = "ppo_model_v7.pt"
+    self.MODEL_NAME = "test"
+    self.SAVE_ROUNDS = [100, 200, 300, 400]
 
     self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Model is run on: {self.device}")
     self.current_round = 0
     self.max_opponents_score = 0
     self.sum_points_per_game = 0
+    self.sum_points_total = 0
     self.last_points = 0
 
     self.all_coins_game = []
@@ -83,9 +85,11 @@ def act(self, game_state: dict) -> str:
     if is_new_round(self, game_state):  # TODO Correct?
         reset_self(self, game_state)
         self.sum_points_per_game += self.last_points
+        self.sum_points_total += self.last_points
         round = game_state['round']
         if ((round-1) % 10) == 0:
             print(f"\nAverage points per game: {self.sum_points_per_game/10}")
+            print(f"Average points per game in total: {self.sum_points_total/round}")
             self.sum_points_per_game = 0
 
     self.last_points = game_state['self'][1]

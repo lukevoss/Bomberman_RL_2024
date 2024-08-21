@@ -141,6 +141,9 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     if (n_round % SAVE_EVERY_N_EPOCHS) == 0:
         self.agent.save_model(self.MODEL_NAME)
 
+    if n_round in self.SAVE_ROUNDS:
+        self.agent.save_model(f"{self.MODEL_NAME}_{n_round}")
+
 
 def reward_from_events(self, events: List[str]) -> int:
     """
