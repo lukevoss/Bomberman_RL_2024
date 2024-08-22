@@ -250,6 +250,11 @@ def state_to_small_features_ppo(game_state: dict, num_coins_already_discovered: 
         if action_idx_to_safety != None:
             feature_vector[action_idx_to_safety] = 1
             return feature_vector
+        else:
+            action_idx_to_safety = state.get_action_idx_to_closest_thing('safety', except_opponents=True)
+            if action_idx_to_safety != None:
+                feature_vector[action_idx_to_safety] = 1
+                return feature_vector
     # If we are sourrounded by danger then wait and don't calculate other directions
     elif state.is_danger_all_around(agent_coords):
         feature_vector[4] = 1

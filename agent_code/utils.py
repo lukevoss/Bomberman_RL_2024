@@ -123,6 +123,16 @@ class GameState:
         return (self.field[step_coords] == FREE and
                 (not step_coords in opponent_positions) and
                 (not step_coords in bomb_positions))
+
+    def is_valid_movement_except_opponents(self, step_coords: Tuple[int, int]) -> bool:
+        """
+        Check whether the movement is possible or not.
+        Expects walls (-1) around game field!!
+        """
+        bomb_positions = {bomb[0] for bomb in self.bombs}
+
+        return (self.field[step_coords] == FREE and
+                (not step_coords in bomb_positions))
     
 
     def is_dangerous(self, step_coords: Tuple[int, int]) -> bool:
@@ -153,10 +163,9 @@ class GameState:
 
         return can_reach_safety, is_effective
 
-    def get_action_idx_to_closest_thing(self, thing: str) -> int:
+    def get_action_idx_to_closest_thing(self, thing: str, except_opponents: bool=False) -> int:
         agent_coords = self.self[3]
-        shortest_path = self._find_shortest_path(
-            agent_coords, thing)
+        shortest_path = self._find_shortest_path(agent_coords, thing, except_opponents=except_opponents)
 
         if shortest_path == None:
             return None
@@ -382,14 +391,14 @@ class GameState:
             agent_coords, 'safety', place_bomb=True)
         return bool(shortest_path)
 
-    def _find_shortest_path(self, start_coords: Tuple[int, int], thing: str, place_bomb=False):
+    def _find_shortest_path(self, start_coords: Tuple[int, int], thing: str, except_opponents: bool=False, place_bomb=False):
         """
         Returns the shortest path to one of the given goal coordinates, currently bombs and opponents block movements
         with next game state estimation. If no path exist it returns None if criterion true at current position, 
         returns empty array
         """
         starting_game_state = copy.deepcopy(self)
-        stop_criterion, object_exists = get_stop_criterion_for_thing(thing)
+        stop_criterion, object_exists = get_stop_criterion_for_thing(thing, except_opponents=except_opponents)
 
         if object_exists(starting_game_state):
             if place_bomb:
@@ -531,7 +540,7 @@ def get_action_idx_from_coords(agent_coords, new_coords):
     return MOVEMENT_DIRECTIONS.index(direction)
 
 
-def get_stop_criterion_for_thing(thing: str):
+def get_stop_criterion_for_thing(thing: str, except_opponents: bool=False):
     match thing:
         case 'coin':
             return is_coin, exists_coin
@@ -540,7 +549,7 @@ def get_stop_criterion_for_thing(thing: str):
         case 'opponent':
             return is_opponent_in_blast_range, exists_opponent
         case 'safety':
-            return is_out_of_danger, exists_safety
+            return (is_out_of_danger_except_opponents if except_opponents else is_out_of_danger), exists_safety
         case 'next_to_opponent':
             return is_next_to_opponent, exists_opponent
         case _:
@@ -593,6 +602,9 @@ def is_out_of_danger(game_state: GameState, new_coords: Tuple[int, int]) -> bool
     """Returns true if the player is out of danger. Stop critereon version if is_save_step"""
     return (game_state.is_valid_movement(new_coords) and not game_state.is_dangerous(new_coords))
 
+def is_out_of_danger_except_opponents(game_state: GameState, new_coords: Tuple[int, int]) -> bool:
+    """Returns true if the player is out of danger. Stop critereon version if is_save_step"""
+    return (game_state.is_valid_movement_except_opponents(new_coords) and not game_state.is_dangerous(new_coords))
 
 def exists_safety(game_state: GameState) -> bool:
     return True
