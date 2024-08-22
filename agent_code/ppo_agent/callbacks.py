@@ -18,7 +18,7 @@ from collections import deque
 import torch
 
 from agent_code.ppo import PPOAgent
-from agent_code.feature_extraction import state_to_small_features_ppo, FEATURE_VECTOR_SIZE
+from agent_code.feature_extraction import state_to_small_features_ppo, state_to_large_features, FEATURE_VECTOR_SIZE
 from agent_code.utils import print_large_feature_vector
 
 
@@ -39,9 +39,9 @@ def setup(self):
     self.MAX_COORD_HISTORY = 7
     HIDDEN_SIZE = 512
     NETWORK_TYPE = 'MLP'
-    PRETRAINED_MODEL = "ppo_model_v7.pt"
+    PRETRAINED_MODEL = "ppo_model_v2.pt"
     self.MODEL_NAME = "test"
-    self.SAVE_ROUNDS = [100, 200, 300, 400]
+    self.SAVE_ROUNDS = [100, 200]
 
     self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Model is run on: {self.device}")
@@ -109,9 +109,9 @@ def act(self, game_state: dict) -> str:
 
     num_coins_already_discovered = len(self.all_coins_game)
 
-    feature_vector = state_to_small_features_ppo(
-        game_state, num_coins_already_discovered).to(self.device)
+    feature_vector = state_to_small_features_ppo(game_state, num_coins_already_discovered).to(self.device)
     
+    #feature_vector = state_to_large_features(game_state, self.max_opponents_score, num_coins_already_discovered)
     
     next_action = self.agent.act(feature_vector)
 

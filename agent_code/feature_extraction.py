@@ -61,7 +61,7 @@ def state_to_large_features(game_state: dict, max_opponents_score: int, num_coin
 
     Author: Luke Voss
     """
-    feature_vector = torch.zeros(27)
+    feature_vector = torch.zeros(30)
 
     state = GameState(**game_state)
     agent_coords = state.self[3]
