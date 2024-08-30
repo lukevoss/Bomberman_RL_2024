@@ -153,6 +153,7 @@ class GenericWorld:
             agent.add_event(e.WAITED)
         else:
             agent.add_event(e.INVALID_ACTION)
+        self.logger.info(f'Agent <{agent.name}> is now at {(agent.x, agent.y)}')
 
     def poll_and_run_agents(self):
         raise NotImplementedError()
@@ -340,16 +341,7 @@ class GenericWorld:
             with open(name, "w") as file:
                 json.dump(results, file, indent=4, sort_keys=True)
             
-            full_evaluation_file_name = file_name.replace(".json", "_full.json")
-            full_evaluation, plot = evaluate_performance(results)
-            
-            plot.savefig(full_evaluation_file_name.replace(".json", ".png"))
-            
-            self.logger.info(f'Full evaluation: {full_evaluation}')
-            
-            with open(Path(full_evaluation_file_name), "w") as file:
-                json.dump(full_evaluation, file, indent=4, sort_keys=True)
-
+            evaluate_performance(results, '.')
 
 class BombeRLeWorld(GenericWorld):
     def __init__(self, args: WorldArgs, agents):
