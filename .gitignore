@@ -116,7 +116,6 @@ screenshots/*.mp4
 screenshots/*.webm
 
 replays/
-results/
 .vscode/launch.json
 stats*.json
 .gitignore
