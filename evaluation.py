@@ -41,10 +41,12 @@ def parse_game_log(log_data):
     """
     # Initialize the variables
     steps = defaultdict(dict)
+    current_round = None
     current_step = None
     last_step_of_player = {}
 
     # Regular expressions to match the log lines
+    round_pattern = re.compile(r"STARTING ROUND #(\d+)")
     step_pattern = re.compile(r"STARTING STEP (\d+)")
     action_pattern = re.compile(r"Agent <([^>]+)> chose action (\w+) in ([\d.]+)s\.")
     time_pattern = re.compile(r"Agent <([^>]+)> stayed within acceptable think time\.")
@@ -54,11 +56,20 @@ def parse_game_log(log_data):
 
     # Parse the log line by line
     for line in log_data.strip().split("\n"):
+        # Check if the line indicates the start of a new round
+        round_match = round_pattern.search(line)
+        if round_match:
+            current_round = int(round_match.group(1))
+            steps[current_round] = {}
+            last_step_of_player[current_round] = {}
+            continue
         # Check if the line indicates the start of a new step
         step_match = step_pattern.search(line)
         if step_match:
             current_step = int(step_match.group(1))
+            steps[current_round][current_step] = {}
             continue
+        
 
         # Check if the line contains an agent's action
         action_match = action_pattern.search(line)
@@ -66,39 +77,35 @@ def parse_game_log(log_data):
             agent_name = action_match.group(1)
             action = action_match.group(2)
             time_taken = float(action_match.group(3))
-            steps[current_step][agent_name] = {'action': action, 'time_taken': time_taken}
-            last_step_of_player[agent_name] = current_step
+            steps[current_round][current_step][agent_name] = {'action': action, 'time_taken': time_taken}
 
         # Check if the line indicates that the agent stayed within the allowed time
         time_match = time_pattern.search(line)
         if time_match:
             agent_name = time_match.group(1)
-            if agent_name in steps[current_step]:
-                steps[current_step][agent_name]['within_time'] = True
-                last_step_of_player[agent_name] = current_step
+            if agent_name in steps[current_round][current_step]:
+                steps[current_round][current_step][agent_name]['within_time'] = True
         
         # Check if the line contains a bomb drop action
         bomb_match = bomb_pattern.search(line)
         if bomb_match:
             agent_name = bomb_match.group(1)
-            steps[current_step][agent_name]['bomb_dropped'] = True
-            steps[current_step][agent_name]['bomb_position'] = [int(bomb_match.group(2)), int(bomb_match.group(3))]
-            last_step_of_player[agent_name] = current_step
+            steps[current_round][current_step][agent_name]['bomb_dropped'] = True
+            steps[current_round][current_step][agent_name]['bomb_position'] = [int(bomb_match.group(2)), int(bomb_match.group(3))]
 
         # Check if the line contains a bomb explosion
         explosion_match = explosion_pattern.search(line)
         if explosion_match:
-            if 'explosions' not in steps[current_step]:
-                steps[current_step]['explosions'] = []
-            steps[current_step]['explosions'].append([int(explosion_match.group(1)), int(explosion_match.group(2))])
-            # Do not update the last step of the player here, as the player might already be dead
+            if 'explosions' not in steps[current_round][current_step]:
+                steps[current_round][current_step]['explosions'] = []
+            steps[current_round][current_step]['explosions'].append([int(explosion_match.group(1)), int(explosion_match.group(2))])
         
         # Check if the line contains the location of an agent
         location_match = location_pattern.search(line)
         if location_match:
             agent_name = location_match.group(1)
-            steps[current_step][agent_name]['location'] = [int(location_match.group(2)), int(location_match.group(3))]
-            last_step_of_player[agent_name] = current_step
+            steps[current_round][current_step][agent_name]['location'] = [int(location_match.group(2)), int(location_match.group(3))]
+            last_step_of_player[current_round][agent_name] = current_step
 
     return dict(steps), last_step_of_player
 
@@ -108,29 +115,32 @@ def build_metrics_from_game_log(parsed_log, last_steps):
     Build the metrics from the parsed game log.
     """
     build_time_metrics(parsed_log, last_steps)
-    build_action_metrics(parsed_log, last_steps)
-    build_bomb_metrics(parsed_log, last_steps)
+    # TODO: Implement the following functions as well wrt the parsed log supporting multiple rounds
+    # build_action_metrics(parsed_log, last_steps)
+    # build_bomb_metrics(parsed_log, last_steps)
+    # build_location_metrics(parsed_log, last_steps)
 
 
 def build_time_metrics(parsed_log, last_steps):
     """
     Build the time metrics from the parsed game log.
     """
-    agents = {}
-    for step, events in parsed_log.items():
-        for agent_name, event in events.items():
-            if agent_name == 'explosions':
-                continue
-            if agent_name not in agents:
-                agents[agent_name] = {}
-            if 'time_taken' in event:
-                agents[agent_name]['total_time'] = agents[agent_name].get('total_time', 0) + event['time_taken']
-            if 'within_time' in event:
-                agents[agent_name]['not_within_time'] = agents[agent_name].get('not_within_time', 0) + (event['within_time'] == False)
-    for agent_name in agents:
-        agents[agent_name]['average_time'] = agents[agent_name]['total_time'] / last_steps[agent_name]
+    agents = { round: {} for round in range(1, len(parsed_log.keys()) + 1) }
+    for round, steps in parsed_log.items():
+        for step, events in steps.items():
+            for agent_name, event in events.items():
+                if agent_name == 'explosions':
+                    continue
+                if agent_name not in agents:
+                    agents[round][agent_name] = {}
+                if 'time_taken' in event:
+                    agents[round][agent_name]['total_time'] = agents[round][agent_name].get('total_time', 0) + event['time_taken']
+                if 'within_time' in event:
+                    agents[round][agent_name]['not_within_time'] = agents[round][agent_name].get('not_within_time', 0) + (event['within_time'] == False)
+        for agent_name in agents[round]:
+            agents[round][agent_name]['average_time'] = agents[round][agent_name]['total_time'] / last_steps[round][agent_name]
     pprint(agents)
-    
+
 
 def build_action_metrics(parsed_log, last_steps):
     """
@@ -169,60 +179,33 @@ def build_bomb_metrics(parsed_log, last_steps):
     plt.imshow(bombs, cmap='hot', interpolation='nearest')
     plt.savefig('results/bombs.png')
     
+    
+def build_location_metrics(parsed_log, last_steps):
+    """
+    Build the location metrics from the parsed game log.
+    """
+    locations = {}
+    for step, events in parsed_log.items():
+        for agent_name, event in events.items():
+            # When only one is left, we don't need to track the location anymore
+            if len(events) == 1:
+                break
+            if agent_name == 'explosions':
+                continue
+            if 'location' in event:
+                if agent_name not in locations:
+                    locations[agent_name] = np.zeros((15, 15))
+                locations[agent_name][event['location'][0] - 1, event['location'][1] - 1] += 1
+    for agent_name in locations:
+        locations[agent_name] /= last_steps[agent_name]
+    pprint(locations)
+    
+    # Plot the heatmaps in one figure
+    figure, axes = plt.subplots(1, len(locations), figsize=(20, 5))
+    for i, (agent_name, location) in enumerate(locations.items()):
+        axes[i].imshow(location, cmap='hot', interpolation='nearest')
+        axes[i].set_title(agent_name + "'s locations in " + str(last_steps[agent_name]) + " steps")
+    plt.savefig('results/locations.png')
+
 
 evaluate_performance(None, '.')
-
-
-
-    # performance = {}
-    # for metric in METRICS:
-    #     performance[metric] = get_performance_for_metric(metric, results, average=True)
-    # plot = plot_results(performance)
-    # return performance, plot
-
-
-
-
-
-
-
-
-
-# def get_performance_for_metric(metric, results, average=False):
-#     """
-#     """
-#     average_performance = {}
-#     for agent_name, agent_results in results["by_agent"].items():
-#         if metric in agent_results:
-#             if average:
-#                 average_performance[agent_name] = agent_results[metric] / agent_results["rounds"]
-#             else:
-#                 average_performance[agent_name] = agent_results[metric]
-#         else:
-#             average_performance[agent_name] = 0
-#     return average_performance
-
-
-# def plot_results(performance):
-#     figure = plt.figure(figsize=(8, 20))
-#     for metric in METRICS[:-1]:
-#         plot_metric(figure, metric, performance)
-#     plot_metric(figure, METRICS[-1], performance, print_axis_labels=True)
-#     figure.tight_layout()
-#     return figure
-
-
-# def plot_metric(figure, metric, performance, print_axis_labels=False):
-#     """
-#     Plot the performance of the agents for a given metric into a figure.
-#     """
-#     ax = figure.add_subplot(len(METRICS), 1, METRICS.index(metric) + 1)
-#     ax.set_title(metric)
-#     ax.bar(performance[metric].keys(), performance[metric].values())
-#     ax.set_ylabel(metric)
-#     if print_axis_labels:
-#         ax.set_xlabel("Agent")
-#         ax.set_xticklabels(performance[metric].keys(), rotation=45)
-#     else:
-#         ax.set_xticklabels([])
-#     ax.grid(axis="y")
