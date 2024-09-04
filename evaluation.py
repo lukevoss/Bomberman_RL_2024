@@ -115,10 +115,9 @@ def build_metrics_from_game_log(parsed_log, last_steps):
     Build the metrics from the parsed game log.
     """
     build_time_metrics(parsed_log, last_steps)
-    # TODO: Implement the following functions as well wrt the parsed log supporting multiple rounds
-    # build_action_metrics(parsed_log, last_steps)
-    # build_bomb_metrics(parsed_log, last_steps)
-    # build_location_metrics(parsed_log, last_steps)
+    build_action_metrics(parsed_log, last_steps)
+    build_bomb_metrics(parsed_log, last_steps)
+    build_location_metrics(parsed_log, last_steps)
 
 
 def build_time_metrics(parsed_log, last_steps):
@@ -146,18 +145,19 @@ def build_action_metrics(parsed_log, last_steps):
     """
     Build the action metrics from the parsed game log.
     """
-    agents = {}
-    for step, events in parsed_log.items():
-        for agent_name, event in events.items():
-            if agent_name == 'explosions':
-                continue
-            if agent_name not in agents:
-                agents[agent_name] = {}
-            if 'action' in event:
-                agents[agent_name][event['action']] = agents[agent_name].get(event['action'], 0) + 1
-    for agent_name in agents:
-        for action in agents[agent_name]:
-            agents[agent_name][action] /= last_steps[agent_name]
+    agents = { round: {} for round in range(1, len(parsed_log.keys()) + 1) }
+    for round, steps in parsed_log.items():
+        for step, events in steps.items():
+            for agent_name, event in events.items():
+                if agent_name == 'explosions':
+                    continue
+                if agent_name not in agents[round]:
+                    agents[round][agent_name] = {}
+                if 'action' in event:
+                    agents[round][agent_name][event['action']] = agents[round][agent_name].get(event['action'], 0) + 1
+        for agent_name in agents[round]:
+            for action in agents[round][agent_name]:
+                agents[round][agent_name][action] /= last_steps[round][agent_name]
     pprint(agents)
 
 
@@ -165,47 +165,87 @@ def build_bomb_metrics(parsed_log, last_steps):
     """
     Build the bomb metrics from the parsed game log.
     """
-    bombs = np.zeros((15, 15))
-    amount_of_bombs = 0
-    for step, events in parsed_log.items():
-        if 'explosions' in events:
-            for explosion in events['explosions']:
-                bombs[explosion[0] - 1, explosion[1] - 1] += 1
-                amount_of_bombs += 1
-    bombs /= amount_of_bombs
-    pprint(bombs)
-    
-    # Plot the heatmap
-    plt.imshow(bombs, cmap='hot', interpolation='nearest')
-    plt.savefig('results/bombs.png')
+    rounds = len(parsed_log.keys())
+    bombs = [np.zeros((15, 15)) for _ in range(rounds)]
+    for round, steps in parsed_log.items():
+        amount_of_bombs = 0
+        for step, events in steps.items():
+            if 'explosions' in events:
+                for explosion in events['explosions']:
+                    bombs[round - 1][explosion[0] - 1, explosion[1] - 1] += 1
+                    amount_of_bombs += 1
+        bombs[round - 1] /= amount_of_bombs
+        pprint(bombs[round - 1])
+        
+        # Plot the heatmap
+        plt.imshow(bombs[round - 1], cmap='hot', interpolation='nearest')
+        plt.savefig(f'results/bombs_{round}.png')
     
     
 def build_location_metrics(parsed_log, last_steps):
     """
     Build the location metrics from the parsed game log.
     """
-    locations = {}
-    for step, events in parsed_log.items():
-        for agent_name, event in events.items():
-            # When only one is left, we don't need to track the location anymore
-            if len(events) == 1:
-                break
-            if agent_name == 'explosions':
-                continue
-            if 'location' in event:
-                if agent_name not in locations:
-                    locations[agent_name] = np.zeros((15, 15))
-                locations[agent_name][event['location'][0] - 1, event['location'][1] - 1] += 1
-    for agent_name in locations:
-        locations[agent_name] /= last_steps[agent_name]
-    pprint(locations)
+    unique_locations_per_agent_per_round = { round: {} for round in range(1, len(parsed_log.keys()) + 1) }
+    locations = { round: {} for round in range(1, len(parsed_log.keys()) + 1) }
+    start_locations = { round: {} for round in range(1, len(parsed_log.keys()) + 1) }
+    stop_locations = { round: {} for round in range(1, len(parsed_log.keys()) + 1) }
+    for round, steps in parsed_log.items():
+        for step, events in steps.items():
+            for agent_name, event in events.items():
+                # When only one is left, we don't need to track the location anymore
+                if len(events) == 1:
+                    break
+                if agent_name == 'explosions':
+                    continue
+                if 'location' in event:
+                    if agent_name not in locations[round]:
+                        locations[round][agent_name] = np.zeros((15, 15))
+                        start_locations[round][agent_name] = event['location']
+                        stop_locations[round][agent_name] = event['location']
+                        unique_locations_per_agent_per_round[round][agent_name] = set()
+                    # get stop location
+                    if step == last_steps[round][agent_name]:
+                        stop_locations[round][agent_name] = event['location']
+                    locations[round][agent_name][event['location'][0] - 1, event['location'][1] - 1] += 1
+                    unique_locations_per_agent_per_round[round][agent_name].add((event['location'][0], event['location'][1]))
+        for agent_name in locations[round]:
+            locations[round][agent_name] /= last_steps[round][agent_name]
+                
+        
+        # Plot the heatmaps in a 2x2 layout
+        figure, axes = plt.subplots(len(locations[round]) // 2, len(locations[round]) // 2, figsize=(12, 12))
+        for i, (agent_name, location) in enumerate(locations[round].items()):
+            row = i // (len(locations[round]) // 2)
+            col = i % (len(locations[round]) // 2)
+            axes[row, col].imshow(location, cmap='hot', interpolation='nearest')
+            # Mark the starting location for each agent
+            axes[row, col].scatter(start_locations[round][agent_name][1] - 1, start_locations[round][agent_name][0] - 1, c='green', s=200)
+            # Mark the stopping location for each agent
+            axes[row, col].scatter(stop_locations[round][agent_name][1] - 1, stop_locations[round][agent_name][0] - 1, c='blue', s=200)
+            axes[row, col].set_title(agent_name + "'s locations in " + str(last_steps[round][agent_name]) + " steps")
+        cbar = figure.colorbar(axes[len(locations[round]) // 2 - 1][len(locations[round]) // 2 - 1].imshow(location, cmap='hot', interpolation='nearest'), ax=axes, fraction=0.046, pad=0.04)
+        cbar.ax.set_ylabel('Percentage (%)')
+        # Add legend to figure
+        figure.legend(['Start', 'Stop'], loc='upper right')
+        plt.savefig(f'results/locations_{round}.png')
+        
+    # Print the unique locations
+    for round, agents in unique_locations_per_agent_per_round.items():
+        print(f"Round {round}:")
+        for agent_name, unique_locations in agents.items():
+            print(f"{agent_name}: {len(unique_locations)} unique locations in {last_steps[round][agent_name]} steps ({len(unique_locations) / last_steps[round][agent_name] * 100:.2f}%)")
+        print()
+        
+    # Print average unique locations per agent
+    unique_locations_per_agent = {agent_name: [0, 0] for agent_name in unique_locations_per_agent_per_round[1]}
     
-    # Plot the heatmaps in one figure
-    figure, axes = plt.subplots(1, len(locations), figsize=(20, 5))
-    for i, (agent_name, location) in enumerate(locations.items()):
-        axes[i].imshow(location, cmap='hot', interpolation='nearest')
-        axes[i].set_title(agent_name + "'s locations in " + str(last_steps[agent_name]) + " steps")
-    plt.savefig('results/locations.png')
-
+    for round, agents in unique_locations_per_agent_per_round.items():
+        for agent_name, unique_locations in agents.items():
+            unique_locations_per_agent[agent_name][0] += len(unique_locations)
+            unique_locations_per_agent[agent_name][1] += last_steps[round][agent_name]
+            
+    for agent_name, (unique_locations, steps) in unique_locations_per_agent.items():
+        print(f"{agent_name}: {unique_locations} unique locations in {steps} steps ({unique_locations / steps * 100:.2f}%)")
 
 evaluate_performance(None, 'logs', 'game.log')
