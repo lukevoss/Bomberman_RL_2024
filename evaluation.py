@@ -50,9 +50,13 @@ def parse_game_log(log_data):
     step_pattern = re.compile(r"STARTING STEP (\d+)")
     action_pattern = re.compile(r"Agent <([^>]+)> chose action (\w+) in ([\d.]+)s\.")
     time_pattern = re.compile(r"Agent <([^>]+)> stayed within acceptable think time\.")
-    bomb_pattern = re.compile(r"Agent <([^>]+)> drops bomb at \(np.int64\((\d+)\), np.int64\((\d+)\)\)")
+    bomb_drop_pattern = re.compile(r"Agent <([^>]+)> drops bomb at \(np.int64\((\d+)\), np.int64\((\d+)\)\)")
     explosion_pattern = re.compile(r"bomb at \(np.int64\((\d+)\), np.int64\((\d+)\)\) explodes")
     location_pattern = re.compile(r"Agent <([^>]+)> is now at \(np.int64\((\d+)\), np.int64\((\d+)\)\)")
+    coin_pickup_pattern = re.compile(r"Agent <([^>]+)> picked up coin at \(np.int64\((\d+)\), np.int64\((\d+)\)\)")
+    coin_found_pattern = re.compile(r"Coin found at \(np.int64\((\d+)\), np.int64\((\d+)\)\)")
+    bomb_suicide_pattern = re.compile(r"Agent <([^>]+)> blown up by own bomb")
+    bomb_kill_pattern = re.compile(r"Agent <([^>]+)> blown up by agent <([^>]+)>'s bomb")
 
     # Parse the log line by line
     for line in log_data.strip().split("\n"):
@@ -87,11 +91,11 @@ def parse_game_log(log_data):
                 steps[current_round][current_step][agent_name]['within_time'] = True
         
         # Check if the line contains a bomb drop action
-        bomb_match = bomb_pattern.search(line)
-        if bomb_match:
-            agent_name = bomb_match.group(1)
+        bomb_drop_match = bomb_drop_pattern.search(line)
+        if bomb_drop_match:
+            agent_name = bomb_drop_match.group(1)
             steps[current_round][current_step][agent_name]['bomb_dropped'] = True
-            steps[current_round][current_step][agent_name]['bomb_position'] = [int(bomb_match.group(2)), int(bomb_match.group(3))]
+            steps[current_round][current_step][agent_name]['bomb_position'] = [int(bomb_drop_match.group(2)), int(bomb_drop_match.group(3))]
 
         # Check if the line contains a bomb explosion
         explosion_match = explosion_pattern.search(line)
@@ -106,6 +110,34 @@ def parse_game_log(log_data):
             agent_name = location_match.group(1)
             steps[current_round][current_step][agent_name]['location'] = [int(location_match.group(2)), int(location_match.group(3))]
             last_step_of_player[current_round][agent_name] = current_step
+            
+        # Check if the line contains a coin pickup action
+        coin_pickup_match = coin_pickup_pattern.search(line)
+        if coin_pickup_match:
+            print("Coin pickup")
+            agent_name = coin_pickup_match.group(1)
+            steps[current_round][current_step][agent_name]['collected_coin_position'] = [int(coin_pickup_match.group(2)), int(coin_pickup_match.group(3))]
+            last_step_of_player[current_round][agent_name] = current_step
+            
+        # Check if the line contains a coin found action
+        coin_found_match = coin_found_pattern.search(line)
+        if coin_found_match:
+            steps[current_round][current_step]['coin_found'] = [int(coin_found_match.group(1)), int(coin_found_match.group(2))]
+            
+        # Check if the line contains a bomb suicide action
+        bomb_suicide_match = bomb_suicide_pattern.search(line)
+        if bomb_suicide_match:
+            agent_name = bomb_suicide_match.group(1)
+            steps[current_round][current_step][agent_name]['bomb_suicide'] = True
+            last_step_of_player[current_round][agent_name] = current_step
+        
+        # Check if the line contains a bomb kill action
+        bomb_kill_match = bomb_kill_pattern.search(line)
+        if bomb_kill_match:
+            agent_name_killed = bomb_kill_match.group(1)
+            agent_name_killer = bomb_kill_match.group(2)
+            steps[current_round][current_step][agent_name_killed]['killed_by'] = agent_name_killer
+            steps[current_round][current_step][agent_name_killer]['killed'] = agent_name_killed
 
     return dict(steps), last_step_of_player
 
@@ -114,10 +146,12 @@ def build_metrics_from_game_log(parsed_log, last_steps):
     """
     Build the metrics from the parsed game log.
     """
-    build_time_metrics(parsed_log, last_steps)
-    build_action_metrics(parsed_log, last_steps)
-    build_bomb_metrics(parsed_log, last_steps)
-    build_location_metrics(parsed_log, last_steps)
+    # build_time_metrics(parsed_log, last_steps)
+    # build_action_metrics(parsed_log, last_steps)
+    # build_bomb_metrics(parsed_log, last_steps)
+    # build_location_metrics(parsed_log, last_steps)
+    # build_coin_metrics(parsed_log, last_steps)
+    build_kill_metrics(parsed_log, last_steps)
 
 
 def build_time_metrics(parsed_log, last_steps):
@@ -247,5 +281,98 @@ def build_location_metrics(parsed_log, last_steps):
             
     for agent_name, (unique_locations, steps) in unique_locations_per_agent.items():
         print(f"{agent_name}: {unique_locations} unique locations in {steps} steps ({unique_locations / steps * 100:.2f}%)")
+
+
+def build_coin_metrics(parsed_log, last_steps):
+    """
+    Build the coin metrics from the parsed game log.
+    """
+    agents = { round: {} for round in range(1, len(parsed_log.keys()) + 1) }
+    for round, steps in parsed_log.items():
+        for step, events in steps.items():
+            for agent_name, event in events.items():
+                if agent_name in ['explosions', 'coin_found']:
+                    continue
+                if agent_name not in agents[round]:
+                    agents[round][agent_name] = 0
+                if 'collected_coin_position' in event:
+                    agents[round][agent_name] += 1
+                    
+        agents[round]['total_coins'] = sum([1 for event in steps.values() if 'coin_found' in event])
+    pprint(agents)
+    
+    # Build metrics for the coins
+    # How long did it take to find the coins?
+    coins = { round: {} for round in range(1, len(parsed_log.keys()) + 1) }
+    for round, steps in parsed_log.items():
+        for step, events in steps.items():
+            if 'coin_found' in events:
+                coins[round][step] = events['coin_found']
+            for agent_name, event in events.items():
+                if 'collected_coin_position' in event:
+                    coins[round][step] = event['collected_coin_position']
+                    coins[round][step].append(agent_name)
+                    break
+    pprint(coins)
+    
+    # Go over all coins and calculate the difference between the coin being found and the coin being picked up on average and per agent
+    time_to_coin = { round: {} for round in range(1, len(parsed_log.keys()) + 1) }
+    for round, coins_per_round in coins.items():
+        for step, coin_info in coins_per_round.items():
+            coin_pos_str = str(coin_info[0]) + '-' + str(coin_info[1])
+            if coin_pos_str not in time_to_coin[round]:
+                time_to_coin[round][coin_pos_str] = [step, None]
+            else:
+                time_to_coin[round][coin_pos_str][1] = step
+                time_to_coin[round][coin_pos_str].append(coin_info[2])
+    for round, coins_per_round in time_to_coin.items():
+        for coin_pos_str, steps in coins_per_round.items():
+            if steps[1] is not None:
+                time_to_coin[round][coin_pos_str].append(steps[1] - steps[0])
+            else:
+                time_to_coin[round][coin_pos_str].append(None)
+    pprint(time_to_coin)
+    
+    # Get average steps to coin per round per agent
+    average_steps_to_coin = { round: {} for round in range(1, len(parsed_log.keys()) + 1) }
+    for round, coins_per_round in time_to_coin.items():
+        for coin_pos_str, steps in coins_per_round.items():
+            if steps[2] == None:
+                continue
+            if steps[2] not in average_steps_to_coin[round]:
+                average_steps_to_coin[round][steps[2]] = []
+            if len(steps) == 4:
+                average_steps_to_coin[round][steps[2]].append(steps[3])
+    for round, coins_per_round in average_steps_to_coin.items():
+        for agent_name, steps in coins_per_round.items():
+            average_steps_to_coin[round][agent_name] = np.mean(steps)
+            
+    pprint(average_steps_to_coin)
+    
+    # Get average over all rounds per agent
+    average_steps_to_coin_overall = {}
+    for round, coins_per_round in average_steps_to_coin.items():
+        for agent_name, steps in coins_per_round.items():
+            if agent_name not in average_steps_to_coin_overall:
+                average_steps_to_coin_overall[agent_name] = []
+            average_steps_to_coin_overall[agent_name].append(steps)
+    for agent_name, steps in average_steps_to_coin_overall.items():
+        average_steps_to_coin_overall[agent_name] = np.mean(steps)
+    pprint(average_steps_to_coin_overall)
+    
+    # Plot the average steps to coin per agent
+    plt.figure()
+    plt.bar(average_steps_to_coin_overall.keys(), average_steps_to_coin_overall.values())
+    plt.xlabel('Agent')
+    plt.ylabel('Average steps to coin')
+    plt.title('Average steps to coin per agent')
+    
+    plt.savefig('results/average_steps_to_coin.png')
+
+
+
+def build_kill_metrics(parsed_log, last_steps):
+    pass
+
 
 evaluate_performance(None, 'logs', 'game.log')
