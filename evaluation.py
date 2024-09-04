@@ -4,27 +4,35 @@ It is called from the main.py file with the "--save-stats" argument.
 """
 
 import os
+import json
 import re
 import numpy as np
 from pprint import pprint
 from collections import defaultdict
 from matplotlib import pyplot as plt
 
+# Global variables
+NON_AGENT_METRICS = ['explosions', 'coin_found']
+
 
 def evaluate_performance(results, base_dir, log_file_name='game.log'):
     """
-    Called when game is over, therefore we can safely also access the game.log file for some additional metrics.
+    Called when game is over, therefore we can safely access the `*.log` file for some additional metrics.
     
-    Returns nothing, but saves the performance metrics in a .json file as well as the plots in a .png file in a dedicated folder.
+    Returns nothing, but saves the performance metrics in a .json file as well as the plots in .png files in a dedicated folder.
     """
     # Step 1: Get the game log file content
     log_file_content = get_game_log_file_content(os.path.join(base_dir, log_file_name))
     # Step 2: Parse the game log file
     parsed_log, last_steps = parse_game_log(log_file_content)
-    # Step 3: Build the metrics from the parsed game log
-    own_metrics = build_metrics_from_game_log(parsed_log, last_steps)
-    # Step 4: Save the performance metrics in a .json file
-    pass
+    # Step 3: Set up dedicated folder for the results
+    results_folder = os.path.join('results', log_file_name.replace(".log", ""))
+    if not os.path.exists(results_folder):
+        os.makedirs(results_folder)
+    # Step 4: Build the metrics from the parsed game log, pass results folder to save the plots
+    own_metrics = build_metrics_from_game_log(parsed_log, last_steps, results_folder)
+    # Step 5: Save the performance metrics in a .json file
+    save_metrics_to_json(own_metrics, os.path.join(results_folder, "metrics.json"))
 
 def get_game_log_file_content(log_file):
     """
@@ -33,6 +41,14 @@ def get_game_log_file_content(log_file):
     with open(log_file, "r") as f:
         lines = f.readlines()
     return "".join(lines)
+
+
+def save_metrics_to_json(metrics, file_name):
+    """
+    Save the metrics to a .json file.
+    """
+    with open(file_name, "w") as f:
+        json.dump(metrics, f, indent=4)
 
     
 def parse_game_log(log_data):
@@ -60,6 +76,7 @@ def parse_game_log(log_data):
 
     # Parse the log line by line
     for line in log_data.strip().split("\n"):
+        # --- META MATCHES ---
         # Check if the line indicates the start of a new round
         round_match = round_pattern.search(line)
         if round_match:
@@ -74,7 +91,7 @@ def parse_game_log(log_data):
             steps[current_round][current_step] = {}
             continue
         
-
+        # --- GAME MATCHES ---
         # Check if the line contains an agent's action
         action_match = action_pattern.search(line)
         if action_match:
@@ -114,7 +131,6 @@ def parse_game_log(log_data):
         # Check if the line contains a coin pickup action
         coin_pickup_match = coin_pickup_pattern.search(line)
         if coin_pickup_match:
-            print("Coin pickup")
             agent_name = coin_pickup_match.group(1)
             steps[current_round][current_step][agent_name]['collected_coin_position'] = [int(coin_pickup_match.group(2)), int(coin_pickup_match.group(3))]
             last_step_of_player[current_round][agent_name] = current_step
@@ -137,21 +153,54 @@ def parse_game_log(log_data):
             agent_name_killed = bomb_kill_match.group(1)
             agent_name_killer = bomb_kill_match.group(2)
             steps[current_round][current_step][agent_name_killed]['killed_by'] = agent_name_killer
-            steps[current_round][current_step][agent_name_killer]['killed'] = agent_name_killed
+            if not 'killed' in steps[current_round][current_step][agent_name_killer]:
+                steps[current_round][current_step][agent_name_killer]['killed'] = []
+            steps[current_round][current_step][agent_name_killer]['killed'].append(agent_name_killed)
 
     return dict(steps), last_step_of_player
 
 
-def build_metrics_from_game_log(parsed_log, last_steps):
+def build_metrics_from_game_log(parsed_log, last_steps, results_folder):
     """
     Build the metrics from the parsed game log.
+    
+    All build_X_metrics functions (except coin and bomb metrics) return a dict of the form
+    {
+        "ROUND_NO": {
+            "SOME_METRIC": {
+                "AGENT_NAME": ...
+        }
+    }
+    
+    These dicts are then combined and written to a file.
     """
-    # build_time_metrics(parsed_log, last_steps)
-    # build_action_metrics(parsed_log, last_steps)
-    # build_bomb_metrics(parsed_log, last_steps)
-    # build_location_metrics(parsed_log, last_steps)
-    # build_coin_metrics(parsed_log, last_steps)
-    build_kill_metrics(parsed_log, last_steps)
+    time_metrics = build_time_metrics(parsed_log, last_steps)
+    action_metrics = build_action_metrics(parsed_log, last_steps)
+    build_bomb_metrics(parsed_log, last_steps, results_folder)
+    location_metrics = build_location_metrics(parsed_log, last_steps, results_folder)
+    coin_metrics = build_coin_metrics(parsed_log, last_steps, results_folder)
+    kill_metrics = build_kill_metrics(parsed_log, last_steps)
+    suicide_metrics = build_suicide_metrics(parsed_log, last_steps)
+    
+    result = { round: {} for round in range(1, len(parsed_log.keys()) + 1) }
+    
+    for k, v in result.items():
+        # Non nested metrics
+        result[k]['time_metrics'] = time_metrics[k]
+        result[k]['action_metrics'] = action_metrics[k]
+        result[k]['kill_metrics'] = kill_metrics[k]
+        result[k]['suicide_metrics'] = suicide_metrics[k]
+        # Nested metrics
+        for location_metric in location_metrics.keys():
+            if not 'location_metrics' in result[k]:
+                result[k]['location_metrics'] = {}
+            result[k]['location_metrics'][location_metric] = location_metrics[location_metric][k]
+        for coin_metric in coin_metrics.keys():
+            if not 'coin_metrics' in result[k]:
+                result[k]['coin_metrics'] = {}
+            result[k]['coin_metrics'][coin_metric] = coin_metrics[coin_metric][k]
+              
+    return result
 
 
 def build_time_metrics(parsed_log, last_steps):
@@ -162,7 +211,7 @@ def build_time_metrics(parsed_log, last_steps):
     for round, steps in parsed_log.items():
         for step, events in steps.items():
             for agent_name, event in events.items():
-                if agent_name == 'explosions':
+                if agent_name in NON_AGENT_METRICS:
                     continue
                 if agent_name not in agents:
                     agents[round][agent_name] = {}
@@ -172,7 +221,7 @@ def build_time_metrics(parsed_log, last_steps):
                     agents[round][agent_name]['not_within_time'] = agents[round][agent_name].get('not_within_time', 0) + (event['within_time'] == False)
         for agent_name in agents[round]:
             agents[round][agent_name]['average_time'] = agents[round][agent_name]['total_time'] / last_steps[round][agent_name]
-    pprint(agents)
+    return agents
 
 
 def build_action_metrics(parsed_log, last_steps):
@@ -183,7 +232,7 @@ def build_action_metrics(parsed_log, last_steps):
     for round, steps in parsed_log.items():
         for step, events in steps.items():
             for agent_name, event in events.items():
-                if agent_name == 'explosions':
+                if agent_name in NON_AGENT_METRICS:
                     continue
                 if agent_name not in agents[round]:
                     agents[round][agent_name] = {}
@@ -192,10 +241,10 @@ def build_action_metrics(parsed_log, last_steps):
         for agent_name in agents[round]:
             for action in agents[round][agent_name]:
                 agents[round][agent_name][action] /= last_steps[round][agent_name]
-    pprint(agents)
+    return agents
 
 
-def build_bomb_metrics(parsed_log, last_steps):
+def build_bomb_metrics(parsed_log, last_steps, results_folder):
     """
     Build the bomb metrics from the parsed game log.
     """
@@ -209,17 +258,17 @@ def build_bomb_metrics(parsed_log, last_steps):
                     bombs[round - 1][explosion[0] - 1, explosion[1] - 1] += 1
                     amount_of_bombs += 1
         bombs[round - 1] /= amount_of_bombs
-        pprint(bombs[round - 1])
         
         # Plot the heatmap
         plt.imshow(bombs[round - 1], cmap='hot', interpolation='nearest')
-        plt.savefig(f'results/bombs_{round}.png')
+        plt.savefig(f'{results_folder}/bombs_{round}.png')
     
     
-def build_location_metrics(parsed_log, last_steps):
+def build_location_metrics(parsed_log, last_steps, results_folder):
     """
     Build the location metrics from the parsed game log.
     """
+    location_metrics = {}
     unique_locations_per_agent_per_round = { round: {} for round in range(1, len(parsed_log.keys()) + 1) }
     locations = { round: {} for round in range(1, len(parsed_log.keys()) + 1) }
     start_locations = { round: {} for round in range(1, len(parsed_log.keys()) + 1) }
@@ -230,7 +279,7 @@ def build_location_metrics(parsed_log, last_steps):
                 # When only one is left, we don't need to track the location anymore
                 if len(events) == 1:
                     break
-                if agent_name == 'explosions':
+                if agent_name in NON_AGENT_METRICS:
                     continue
                 if 'location' in event:
                     if agent_name not in locations[round]:
@@ -262,15 +311,8 @@ def build_location_metrics(parsed_log, last_steps):
         cbar.ax.set_ylabel('Percentage (%)')
         # Add legend to figure
         figure.legend(['Start', 'Stop'], loc='upper right')
-        plt.savefig(f'results/locations_{round}.png')
-        
-    # Print the unique locations
-    for round, agents in unique_locations_per_agent_per_round.items():
-        print(f"Round {round}:")
-        for agent_name, unique_locations in agents.items():
-            print(f"{agent_name}: {len(unique_locations)} unique locations in {last_steps[round][agent_name]} steps ({len(unique_locations) / last_steps[round][agent_name] * 100:.2f}%)")
-        print()
-        
+        plt.savefig(f'{results_folder}/locations_{round}.png')
+           
     # Print average unique locations per agent
     unique_locations_per_agent = {agent_name: [0, 0] for agent_name in unique_locations_per_agent_per_round[1]}
     
@@ -278,20 +320,26 @@ def build_location_metrics(parsed_log, last_steps):
         for agent_name, unique_locations in agents.items():
             unique_locations_per_agent[agent_name][0] += len(unique_locations)
             unique_locations_per_agent[agent_name][1] += last_steps[round][agent_name]
-            
-    for agent_name, (unique_locations, steps) in unique_locations_per_agent.items():
-        print(f"{agent_name}: {unique_locations} unique locations in {steps} steps ({unique_locations / steps * 100:.2f}%)")
+    
+    # Convert the unique_locations_per_agent_per_round set to a count
+    for round, events in unique_locations_per_agent_per_round.items():
+        for agent_name, unique_locations in events.items():
+            unique_locations_per_agent_per_round[round][agent_name] = len(unique_locations)
+    
+    location_metrics['unique_locations_per_agent_per_round'] = unique_locations_per_agent_per_round
+    return location_metrics
 
 
-def build_coin_metrics(parsed_log, last_steps):
+def build_coin_metrics(parsed_log, last_steps, results_folder):
     """
     Build the coin metrics from the parsed game log.
     """
+    time_results = {}
     agents = { round: {} for round in range(1, len(parsed_log.keys()) + 1) }
     for round, steps in parsed_log.items():
         for step, events in steps.items():
             for agent_name, event in events.items():
-                if agent_name in ['explosions', 'coin_found']:
+                if agent_name in NON_AGENT_METRICS:
                     continue
                 if agent_name not in agents[round]:
                     agents[round][agent_name] = 0
@@ -299,7 +347,21 @@ def build_coin_metrics(parsed_log, last_steps):
                     agents[round][agent_name] += 1
                     
         agents[round]['total_coins'] = sum([1 for event in steps.values() if 'coin_found' in event])
-    pprint(agents)
+
+    time_results['coins_collected_by_agent'] = agents
+    
+    # Plot the collected coins per round
+    plt.figure()
+    for agent_name in agents[1].keys():
+        if agent_name == 'total_coins':
+            continue
+        plt.plot(agents.keys(), [agents[round][agent_name] for round in agents.keys()], label=agent_name)
+    plt.xlabel('Round')
+    plt.ylabel('Collected coins')
+    plt.title('Collected coins per round')
+    plt.legend()
+        
+    plt.savefig(f'{results_folder}/collected_coins_over_round.png')
     
     # Build metrics for the coins
     # How long did it take to find the coins?
@@ -313,7 +375,8 @@ def build_coin_metrics(parsed_log, last_steps):
                     coins[round][step] = event['collected_coin_position']
                     coins[round][step].append(agent_name)
                     break
-    pprint(coins)
+
+    time_results['coins'] = coins
     
     # Go over all coins and calculate the difference between the coin being found and the coin being picked up on average and per agent
     time_to_coin = { round: {} for round in range(1, len(parsed_log.keys()) + 1) }
@@ -331,7 +394,8 @@ def build_coin_metrics(parsed_log, last_steps):
                 time_to_coin[round][coin_pos_str].append(steps[1] - steps[0])
             else:
                 time_to_coin[round][coin_pos_str].append(None)
-    pprint(time_to_coin)
+
+    time_results['time_till_coin_collection'] = time_to_coin
     
     # Get average steps to coin per round per agent
     average_steps_to_coin = { round: {} for round in range(1, len(parsed_log.keys()) + 1) }
@@ -346,33 +410,65 @@ def build_coin_metrics(parsed_log, last_steps):
     for round, coins_per_round in average_steps_to_coin.items():
         for agent_name, steps in coins_per_round.items():
             average_steps_to_coin[round][agent_name] = np.mean(steps)
-            
-    pprint(average_steps_to_coin)
     
+    time_results['average_steps_before_agent_finds_coin'] = average_steps_to_coin
+    
+    # TODO: New set of metrics: averages over all rounds -> make from first set of metrics
     # Get average over all rounds per agent
-    average_steps_to_coin_overall = {}
-    for round, coins_per_round in average_steps_to_coin.items():
-        for agent_name, steps in coins_per_round.items():
-            if agent_name not in average_steps_to_coin_overall:
-                average_steps_to_coin_overall[agent_name] = []
-            average_steps_to_coin_overall[agent_name].append(steps)
-    for agent_name, steps in average_steps_to_coin_overall.items():
-        average_steps_to_coin_overall[agent_name] = np.mean(steps)
-    pprint(average_steps_to_coin_overall)
+    # average_steps_to_coin_overall = {}
+    # for round, coins_per_round in average_steps_to_coin.items():
+    #     for agent_name, steps in coins_per_round.items():
+    #         if agent_name not in average_steps_to_coin_overall:
+    #             average_steps_to_coin_overall[agent_name] = []
+    #         average_steps_to_coin_overall[agent_name].append(steps)
+    # for agent_name, steps in average_steps_to_coin_overall.items():
+    #     average_steps_to_coin_overall[agent_name] = np.mean(steps)
+    # pprint(average_steps_to_coin_overall)
     
     # Plot the average steps to coin per agent
-    plt.figure()
-    plt.bar(average_steps_to_coin_overall.keys(), average_steps_to_coin_overall.values())
-    plt.xlabel('Agent')
-    plt.ylabel('Average steps to coin')
-    plt.title('Average steps to coin per agent')
+    # plt.figure()
+    # plt.bar(average_steps_to_coin_overall.keys(), average_steps_to_coin_overall.values())
+    # plt.xlabel('Agent')
+    # plt.ylabel('Average steps to coin')
+    # plt.title('Average steps to coin per agent')
+    # plt.savefig(f'{results_folder}/average_steps_to_coin.png')
     
-    plt.savefig('results/average_steps_to_coin.png')
+    return time_results
 
+
+def build_suicide_metrics(parsed_log, last_steps):
+    agents = { round: {} for round in range(1, len(parsed_log.keys()) + 1) }
+    for round, steps in parsed_log.items():
+        agents[round]['suicides'] = 0
+        for step, events in steps.items():
+            for agent_name, event in events.items():
+                if agent_name in NON_AGENT_METRICS:
+                    continue
+                if agent_name not in agents[round]:
+                    agents[round][agent_name] = 0
+                if 'bomb_suicide' in event:
+                    agents[round][agent_name] = 1
+                    agents[round]['suicides'] += 1
+        
+    return agents
 
 
 def build_kill_metrics(parsed_log, last_steps):
-    pass
+    agents = { round: {} for round in range(1, len(parsed_log.keys()) + 1) }
+    for round, steps in parsed_log.items():
+        agents[round]['total_kills'] = 0
+        for step, events in steps.items():
+            for agent_name, event in events.items():
+                if agent_name in NON_AGENT_METRICS:
+                    continue
+                if agent_name not in agents[round]:
+                    agents[round][agent_name] = []
+                if 'killed' in event:
+                    agents[round][agent_name].append(event['killed'])
+                    agents[round]['total_kills'] += 1
+        
+    return agents
+    
 
 
 evaluate_performance(None, 'logs', 'game.log')
