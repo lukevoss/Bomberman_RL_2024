@@ -61,8 +61,9 @@ class GenericWorld:
     def setup_logging(self):
         self.logger = logging.getLogger('BombeRLeWorld')
         self.logger.setLevel(s.LOG_GAME)
+        self.logger_file_name = str(datetime.now()).replace(" ", "_").replace(":", "-")[:-3] + "_game.log"
         handler = logging.FileHandler(
-            f'{self.args.log_dir}/game.log', mode="w")
+            f'{self.args.log_dir}/{self.logger_file_name}', mode="w")
         handler.setLevel(logging.DEBUG)
         formatter = logging.Formatter(
             '%(asctime)s [%(name)s] %(levelname)s: %(message)s')
@@ -341,7 +342,7 @@ class GenericWorld:
             with open(name, "w") as file:
                 json.dump(results, file, indent=4, sort_keys=True)
             
-            evaluate_performance(results, '.')
+            evaluate_performance(results, 'logs', self.logger_file_name)
 
 class BombeRLeWorld(GenericWorld):
     def __init__(self, args: WorldArgs, agents):

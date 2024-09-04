@@ -11,14 +11,14 @@ from collections import defaultdict
 from matplotlib import pyplot as plt
 
 
-def evaluate_performance(results, base_dir):
+def evaluate_performance(results, base_dir, log_file_name='game.log'):
     """
     Called when game is over, therefore we can safely also access the game.log file for some additional metrics.
     
     Returns nothing, but saves the performance metrics in a .json file as well as the plots in a .png file in a dedicated folder.
     """
     # Step 1: Get the game log file content
-    log_file_content = get_game_log_file_content(os.path.join(base_dir, 'logs/game.log'))
+    log_file_content = get_game_log_file_content(os.path.join(base_dir, log_file_name))
     # Step 2: Parse the game log file
     parsed_log, last_steps = parse_game_log(log_file_content)
     # Step 3: Build the metrics from the parsed game log
@@ -208,4 +208,4 @@ def build_location_metrics(parsed_log, last_steps):
     plt.savefig('results/locations.png')
 
 
-evaluate_performance(None, '.')
+evaluate_performance(None, 'logs', 'game.log')
