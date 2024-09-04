@@ -14,6 +14,9 @@ from matplotlib import pyplot as plt
 # Global variables
 NON_AGENT_METRICS = ['explosions', 'coin_found']
 
+# TODO
+# - Make sure this works with the main.py -> Run training and see if the metrics are saved
+# - Build metrics for averages over all rounds -> new file that uses all metrics files from selected folders
 
 def evaluate_performance(results, base_dir, log_file_name='game.log'):
     """
