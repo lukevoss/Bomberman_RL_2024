@@ -31,16 +31,22 @@ def setup(self):
     """
     # Hyperparameter
     self.MAX_COORD_HISTORY = 7
-    self.MODEL_NAME = "q_table.pkl"
+    self.MODEL_NAME = "who_is_gonna_be_the_one.pkl"
 
     self.current_round = 0
     self.all_coins_game = []
     self.agent_coord_history = deque([], self.MAX_COORD_HISTORY)
 
-    # Learning rate von 0.1 funktioniert gut, ist aber recht langsam
-    self.agent = QLearningAgent(pretrained_model="atom.pkl", logger=self.logger, learning_rate=0.01, gamma = 0, max_epsilon = 0.2, min_epsilon = 0.05, decay_rate = 0.0001)
-
-    
+    # Pretraining
+    # 1) (200 rounds, Max rounds = 100)
+    self.agent = QLearningAgent(logger=self.logger, learning_rate=0.9, gamma = 0, max_epsilon = 0.8, min_epsilon = 0.05, decay_rate = 0.001)
+    # 2) - 6) (200 rounds)
+    # self.agent = QLearningAgent(pretrained_model=self.MODEL_NAME, logger=self.logger, learning_rate=0.9, gamma = 0, max_epsilon = 0.8, min_epsilon = 0.05, decay_rate = 0.001)
+    # -- ENABLE BOMBS --
+    # 7) - 12) (200 rounds)
+    # self.agent = QLearningAgent(pretrained_model=self.MODEL_NAME, logger=self.logger, learning_rate=0.9, gamma = 0, max_epsilon = 0.8, min_epsilon = 0.05, decay_rate = 0.001)
+    # Main Training (10000 rounds, Max rounds = 400)
+    # self.agent = QLearningAgent(pretrained_model=self.MODEL_NAME, logger=self.logger, learning_rate=0.1, gamma = 0.8, max_epsilon = 0.8, min_epsilon = 0.05, decay_rate = 0.001)
 
 
 def reset_self(self, game_state: dict):
