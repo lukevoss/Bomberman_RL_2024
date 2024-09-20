@@ -6,9 +6,9 @@ Deep learning approach with strong feature engineering
 """
 from typing import List
 
-from agent_code.feature_extraction import state_to_small_features
-from agent_code.add_own_events import add_own_events_q_learning, GAME_REWARDS
-from agent_code.q_learning import *
+from agent_code.atom.feature_extraction import state_to_small_features
+from agent_code.atom.add_own_events import add_own_events_q_learning, GAME_REWARDS
+from agent_code.atom.q_learning import *
 
 # Hyper parameters:
 SAVE_EVERY_N_EPOCHS = 10

@@ -11,8 +11,8 @@ Author: Luke Voss
 """
 from collections import deque
 
-from agent_code.feature_extraction import state_to_small_features
-from agent_code.q_learning import QLearningAgent
+from agent_code.atom.feature_extraction import state_to_small_features
+from agent_code.atom.q_learning import QLearningAgent
 
 
 

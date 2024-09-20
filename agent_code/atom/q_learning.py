@@ -3,8 +3,8 @@ import random
 import pickle
 
 import events as e
-import own_events as own_e
-from agent_code.utils import *
+import agent_code.atom.own_events as own_e
+from agent_code.atom.utils import *
 
 
 class QLearningAgent:

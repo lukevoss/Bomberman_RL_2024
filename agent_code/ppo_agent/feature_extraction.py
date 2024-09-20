@@ -1,7 +1,7 @@
 
 import torch
 
-from agent_code.utils import *
+from agent_code.ppo_agent.utils import *
 
 FEATURE_VECTOR_SIZE=20
 

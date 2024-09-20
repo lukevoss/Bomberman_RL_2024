@@ -1,6 +1,6 @@
-from agent_code.utils import *
+from agent_code.atom.utils import *
 import events as e
-import own_events as own_e
+import agent_code.atom.own_events as own_e
 
 GAME_REWARDS = {
         # Idea: If we want the action it should sum up to positive number, if not it should be negative
