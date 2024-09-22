@@ -1,3 +1,9 @@
+"""
+File to train the Actor Critic backbone of the PPO algorithm to act like the q-learning agent
+Efficient training and testing of different Network architectures 
+and give a good starting point for reinforcement learning
+"""
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -84,7 +90,7 @@ def train(model, device, train_loader, criterion, optimizer):
         dist, estimated_returns = model(state)
 
         returns = ppo.compute_gae_tensors(next_value, rewards,
-                                    masks, estimated_returns).to(device)
+                                    masks, estimated_returns, gamma=0.3).to(device)
 
         action_prediction = dist.logits
         action = action.long()
@@ -117,7 +123,7 @@ def validation(model, device, validation_loader, criterion):
             dist, estimated_returns = model(state)
 
             returns = ppo.compute_gae_tensors(next_value, rewards,
-                                        masks, estimated_returns).to(device)
+                                        masks, estimated_returns, gamma=0.3).to(device)
 
             action_prediction = dist.logits
             action = action.long()

@@ -125,11 +125,13 @@ ppo_agent2
 ppo_agent3
 ppo_agent4
 
-data_generator_atom_q
+data_generator_large_features
+ppo_agent_final
+ppo_agent_large_features
 
-create_dataset_atom_q.py
-imitation_training_atom_q.py
+create_dataset_ppo_large_features.py
+imitation_training_ppo_large_features.py
 
-training_ppo_v8.sh
+training.sh
 
-models_test.txt
+test_*

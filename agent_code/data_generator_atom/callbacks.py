@@ -1,20 +1,14 @@
 """ 
-This File is called by the environment and manages the agents movements
-Implementation of a Q-learning algorithm
+This Agent is based on the q_learning_agent and acts as data generator.
+The generated data samples consist of the normalized game state and the following action. 
 
-Current Status:
-Agent "atom" continiously achieves about 5.1 points per game, 
-in the classic setting with 3 rule based agents as opponents
-
-
-Author: Luke Voss
+Author: Max Tiedl
 """
+
 from collections import deque
 
 from agent_code.feature_extraction import state_to_small_features
 from agent_code.q_learning import QLearningAgent
-
-
 
 def setup(self):
     """
@@ -58,8 +52,6 @@ def act(self, game_state: dict) -> str:
     """
     Agent parses the input, thinks, and take a decision.
     When not in training mode, the maximum execution time for this method is 0.5s.
-
-    Author: Luke Voss
     """
     if is_new_round(self, game_state): 
         reset_self(self, game_state)

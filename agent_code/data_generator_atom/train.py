@@ -1,9 +1,10 @@
-"""
-This File is called by the environment and manages the agents training
-Implementation of a PPO algorithm with LSTM and MLP networks as Actor Critic
+""" 
+This Agent is based on the q_learning_agent and acts as data generator.
+The generated data samples consist of the normalized game state and the following action. 
 
-Deep learning approach with strong feature engineering
+Author: Max Tiedl
 """
+
 from typing import List
 
 from agent_code.feature_extraction import state_to_small_features
