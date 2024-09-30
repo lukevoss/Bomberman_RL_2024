@@ -1,5 +1,8 @@
-# Reinforcement Learning for Bomberman 2024
+<div align="center">
 
+# Reinforcement Learning for Bomberman SS2024
+
+</div>
 <div align="center">
   <img src="images/bomberman.png" width="500" alt="Bomberman">
 </div>
