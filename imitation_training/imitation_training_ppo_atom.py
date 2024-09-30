@@ -9,8 +9,8 @@ import torch
 import torch.nn as nn
 from torch.distributions import Categorical
 from torch.utils.data import Dataset, random_split
-from agent_code.actor_critic import ActorCriticMLP
-import agent_code.ppo as ppo
+from agent_code.echo.actor_critic import ActorCriticMLP
+import agent_code.echo.ppo as ppo
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 USING_PRETRAINED = False

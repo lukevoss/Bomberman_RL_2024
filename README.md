@@ -1,3 +1,4 @@
+![Bomberman](images/bomberman.png)
 
 # Reinforcement Learning for Bomberman
 
@@ -5,8 +6,6 @@
 - Max Tiedl
 - Bastian Müller
 - Luke Voß
-
-![Bomberman](images/bomberman.png)
 
 
 A project for the course:  

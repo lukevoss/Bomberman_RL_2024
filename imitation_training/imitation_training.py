@@ -3,8 +3,8 @@ import numpy as np
 
 from tqdm import tqdm
 
-from agent_code.q_learning import QLearningAgent
-from agent_code.utils import ACTIONS
+from agent_code.atom.q_learning import QLearningAgent
+from agent_code.atom.utils import ACTIONS
 
 
 NUM_EPOCHS = 1

@@ -5,8 +5,8 @@ import numpy as np
 from tqdm import tqdm  
 
 import events as e
-import own_events as own_e
-from agent_code.add_own_events import reward_from_events
+import agent_code.atom.own_events as own_e
+from agent_code.atom.add_own_events import reward_from_events
 
 def main():
 
