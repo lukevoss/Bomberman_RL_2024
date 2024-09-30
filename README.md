@@ -1,4 +1,4 @@
-![Bomberman](images/bomberman.png)
+<img src="images/bomberman.png" width="500" alt="Bomberman">
 
 # Reinforcement Learning for Bomberman
 
