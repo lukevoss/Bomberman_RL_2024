@@ -23,19 +23,26 @@ Department of Computer Science
 **Last Update:** 30.09.2024
 
 
-## Project Structure
+## Project Overview
 
-### Best Performing Agent: Echo Agent
+Due to the confidentiality requirements of this project, the full report cannot be made publicly available. Below is a brief overview of our work and a presentation of the various agents we have developed.
+
+### Best Performing Agents
+
+#### 1. Echo 
 
 **Framework:** Proximal Policy Optimization (PPO)  
-**Location:** `agent_code/echo`  
+**Location:** `agent_code/echo`
+**Average Score:** 5.21  
 
 The Echo Agent, our top performer, utilized imitation learning to acquire skills. This learning approach was primarily based on behaviors observed from our second-best agent, Atom.
 
-### Second Best Performing Agent: Atom
+#### 2. Atom
 
 **Framework:** Q-Learning  
-**Location:** `agent_code/atom`  
+**Location:** `agent_code/atom`
+**Average Score:** 5.04
+
 
 Atom has demonstrated robust performance and serves as the foundational model for the Echo Agent's training through imitation.
 
