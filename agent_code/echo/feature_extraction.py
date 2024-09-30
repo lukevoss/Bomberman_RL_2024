@@ -109,7 +109,7 @@ def state_to_large_features(game_state: dict, max_opponents_score: int, num_coin
     feature_vector[25] = can_reach_safety
 
     # Can we place a bomb?
-    feature_vector[26] = state.self[2]
+    feature_vector[26] = state.self[2] 
 
     # Is it a perfect spot for a bomb?
     feature_vector[27] = state.is_perfect_bomb_spot(agent_coords)
