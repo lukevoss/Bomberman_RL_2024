@@ -32,16 +32,16 @@ Due to the confidentiality requirements of this project, the full report cannot 
 #### 1. Echo 
 
 **Framework:** Proximal Policy Optimization (PPO)  
-**Location:** `agent_code/echo`
 **Average Score:** 5.21  
+**Location:** `agent_code/echo`
 
 The Echo Agent, our top performer, utilized imitation learning to acquire skills. This learning approach was primarily based on behaviors observed from our second-best agent, Atom.
 
 #### 2. Atom
 
 **Framework:** Q-Learning  
-**Location:** `agent_code/atom`
 **Average Score:** 5.04
+**Location:** `agent_code/atom`
 
 
 Atom has demonstrated robust performance and serves as the foundational model for the Echo Agent's training through imitation.
