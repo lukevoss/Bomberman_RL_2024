@@ -1,7 +1,7 @@
 # Reinforcement Learning for Bomberman 2024
 
 <div align="center">
-  <img src="figures/bomberman.png" width="500" alt="Bomberman">
+  <img src="images/bomberman.png" width="500" alt="Bomberman">
 </div>
 
 **Authors:**
