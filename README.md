@@ -40,7 +40,7 @@ The Echo Agent, our top performer, utilized imitation learning to acquire skills
 #### 2. Atom
 
 **Framework:** Q-Learning  
-**Average Score:** 5.04
+**Average Score:** 5.04  
 **Location:** `agent_code/atom`
 
 
